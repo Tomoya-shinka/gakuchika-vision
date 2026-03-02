@@ -275,7 +275,7 @@ export default function TasksPage() {
             <CardContent className="flex min-h-0 items-center justify-center px-1 pb-1 pt-0 sm:px-2 sm:pb-2 sm:pt-0">
               <div className="relative h-[90px] w-full sm:h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={0}>
+                  <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     {hasTasks ? (
                       <>
                         {/* レイヤー1: 背景（灰色）全周固定 */}
