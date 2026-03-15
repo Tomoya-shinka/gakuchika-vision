@@ -14,6 +14,7 @@ export default function MyPageRecords() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
 
   useEffect(() => {
+    // ローカルに保存されたジャーナルを新しい順で取得
     setEntries(loadEntries());
   }, []);
 
@@ -32,11 +33,12 @@ export default function MyPageRecords() {
         </h1>
         <span className="w-14" aria-hidden />
       </header>
-      <main className="flex flex-1 overflow-auto p-6">
+
+      <main className="flex flex-1 overflow-auto bg-[#fafafa] px-4 py-6 dark:bg-slate-950/40 sm:px-6">
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <div className="flex min-h-[52px] flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              検索バーや日付フィルタを配置するエリア（将来実装）
+              これまで書いたジャーナルを振り返り、自己分析やガクチカ作成に活かしましょう。
             </p>
           </div>
 
@@ -46,10 +48,12 @@ export default function MyPageRecords() {
             </h2>
 
             {entries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-20 text-center">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background py-16 text-center shadow-sm">
                 <BookOpen className="mb-4 size-12 text-muted-foreground/40" />
-                <p className="text-muted-foreground">まだ記録がありません</p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="text-sm font-medium text-muted-foreground">
+                  まだ記録がありません
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
                   ジャーナルページで書き溜めた記録がここに表示されます
                 </p>
                 <Link
@@ -60,28 +64,50 @@ export default function MyPageRecords() {
                 </Link>
               </div>
             ) : (
-              <ul className="space-y-3">
-                {entries.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm transition-colors hover:border-border/80 hover:bg-muted/20 hover:shadow-md"
-                  >
-                    <p className="line-clamp-2 text-base font-medium text-foreground">
-                      {getPreview(entry.content, 80)}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {formatDate(entry.createdAt)}
-                    </p>
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                        本文を表示
-                      </summary>
-                      <p className="mt-3 whitespace-pre-wrap border-t border-border pt-3 text-sm leading-relaxed text-foreground/90">
-                        {entry.content}
-                      </p>
-                    </details>
-                  </li>
-                ))}
+              <ul className="flex flex-col gap-4">
+                {entries.map((entry) => {
+                  const preview = getPreview(entry.content, 60);
+                  const visibility =
+                    entry.visibility === "public" ? "public" : "private";
+                  const badgeLabel =
+                    visibility === "public" ? "公開" : "非公開";
+                  const badgeEmoji =
+                    visibility === "public" ? "🌏" : "🔒";
+
+                  return (
+                    <li key={entry.id}>
+                      <Link
+                        href={`/journal/${entry.id}`}
+                        className="block rounded-2xl border border-border bg-white px-5 py-4 shadow-sm transition-transform transition-shadow hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-900/80"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                              <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+                                {entry.title || preview}
+                              </p>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(entry.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
+                              {preview}
+                            </p>
+                          </div>
+                          <span
+                            className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                            aria-label={`この記録は${badgeLabel}です`}
+                          >
+                            <span className="mr-1" aria-hidden>
+                              {badgeEmoji}
+                            </span>
+                            {badgeLabel}
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

@@ -33,6 +33,9 @@ export interface GoalsData {
 
 export const GOALS_STORAGE_KEY = "gakuchika-goals";
 
+/** AIチャットから目標入力フォームへ提案を渡すための sessionStorage キー（接尾辞に type を付与） */
+export const GOAL_AI_PROPOSAL_KEY = "gakuchika-goal-ai-proposal";
+
 const defaultGoalItem = (): GoalItem => ({
   content: "",
   image: "",

@@ -15,14 +15,7 @@ import {
   formatDeadlineShort,
   type GoalsData,
 } from "@/lib/goals";
-import {
-  Target,
-  Flag,
-  Calendar,
-  Pencil,
-  ListTodo,
-  ArrowLeft,
-} from "lucide-react";
+import { Target, Flag, Calendar, Pencil, ArrowLeft } from "lucide-react";
 
 export default function MyPageGoals() {
   const [data, setData] = useState<GoalsData | null>(null);
@@ -71,14 +64,7 @@ export default function MyPageGoals() {
         <h1 className="flex-1 text-center text-base font-semibold">
           あなたのゴール
         </h1>
-        <div className="flex w-14 justify-end">
-          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" asChild>
-            <Link href="/tasks">
-              <ListTodo className="size-3" />
-              タスク
-            </Link>
-          </Button>
-        </div>
+        <div className="flex w-14 justify-end" />
       </header>
       <main className="flex min-h-0 flex-1 flex-col overflow-auto bg-background px-4 py-6 sm:px-6">
         <div className="mx-auto flex w-full max-w-2xl flex-col items-stretch space-y-8">

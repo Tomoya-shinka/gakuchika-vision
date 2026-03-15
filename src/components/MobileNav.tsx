@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, ListTodo, CircleUser } from "lucide-react";
+import { Home, BookOpen, CircleUser, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -17,9 +17,9 @@ const navItems = [
     icon: BookOpen,
   },
   {
-    title: "習慣トラッカー",
-    url: "/tasks",
-    icon: ListTodo,
+    title: "自己分析",
+    url: "/self-analysis",
+    icon: Sparkles,
   },
   {
     title: "My Page",

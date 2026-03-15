@@ -10,10 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   loadGoals,
   saveGoals,
+  GOAL_AI_PROPOSAL_KEY,
   type GoalsData,
   type GoalItem,
 } from "@/lib/goals";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 
 const TYPE_MAP = {
   long: {
@@ -49,11 +50,29 @@ export default function GoalEditPage() {
     setData(g);
     if (config) {
       const item = g[config.key];
-      setContent(item.content ?? "");
-      setImage(item.image ?? "");
-      setDeadline(item.deadline ?? "");
+      let initialContent = item.content ?? "";
+      let initialImage = item.image ?? "";
+      let initialDeadline = item.deadline ?? "";
+
+      // AIチャットから戻った際の提案を反映
+      try {
+        const stored = sessionStorage.getItem(`${GOAL_AI_PROPOSAL_KEY}-${typeParam}`);
+        if (stored) {
+          const parsed = JSON.parse(stored) as { content?: string; image?: string; deadline?: string };
+          if (parsed.content) initialContent = parsed.content;
+          if (parsed.image) initialImage = parsed.image;
+          if (parsed.deadline) initialDeadline = parsed.deadline;
+          sessionStorage.removeItem(`${GOAL_AI_PROPOSAL_KEY}-${typeParam}`);
+        }
+      } catch {
+        // ignore
+      }
+
+      setContent(initialContent);
+      setImage(initialImage);
+      setDeadline(initialDeadline);
     }
-  }, [config]);
+  }, [config, typeParam]);
 
   useEffect(() => {
     load();
@@ -126,11 +145,24 @@ export default function GoalEditPage() {
 
       <main className="flex flex-1 flex-col overflow-auto bg-gradient-to-b from-slate-50/40 via-white to-sky-50/20 px-4 py-10 dark:from-slate-950/20 dark:via-background dark:to-sky-950/10 sm:px-6">
         <div className="mx-auto w-full max-w-xl space-y-12">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">{config.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <div className="space-y-4">
+            <h1 className="text-xl font-semibold text-foreground">
+              {config.title}
+            </h1>
+            <p className="text-sm text-muted-foreground">
               自分と向き合い、目標を具体化していきましょう
             </p>
+            <Link href={`/goals/chat?type=${typeParam}`} className="inline-block">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 gap-2 border-2 border-sky-300 bg-sky-50 px-5 text-sm font-semibold text-sky-700 shadow-md hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950/50 dark:text-sky-300"
+              >
+                <Sparkles className="size-4" aria-hidden />
+                ✨ AIに相談
+              </Button>
+            </Link>
           </div>
 
           <div className="space-y-8">

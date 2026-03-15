@@ -5,6 +5,13 @@ import Link from "next/link";
 import { History, Target, UserPen } from "lucide-react";
 import { loadGoals } from "@/lib/goals";
 import { loadProfile, saveProfile, type UserProfile } from "@/lib/user-profile";
+import { useAuth } from "@/contexts/auth-context";
+import { getDb } from "@/lib/firebase";
+import {
+  getUserProfile,
+  saveUserProfile,
+  type FirestoreUserProfile,
+} from "@/lib/user-profile-firestore";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,8 +51,11 @@ const menuItems = [
 ];
 
 export default function MyPage() {
+  const { user } = useAuth();
   const [vision, setVision] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [firestoreProfile, setFirestoreProfile] =
+    useState<FirestoreUserProfile | null>(null);
   const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<UserProfile>({
     name: "TOMOYA",
@@ -54,11 +64,29 @@ export default function MyPage() {
     graduationDate: "2028-03-31",
   });
 
-  const loadProfileData = useCallback(() => {
+  const loadProfileData = useCallback(async () => {
     const p = loadProfile();
     setProfile(p);
     setEditForm(p);
-  }, []);
+    if (user?.uid) {
+      try {
+        const fp = await getUserProfile(getDb(), user.uid);
+        setFirestoreProfile(fp);
+        if (fp) {
+          setEditForm({
+            name: fp.displayName || p.name,
+            university: fp.university || p.university,
+            status: fp.grade || p.status,
+            graduationDate: fp.graduationDate || p.graduationDate,
+          });
+        }
+      } catch {
+        setFirestoreProfile(null);
+      }
+    } else {
+      setFirestoreProfile(null);
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     const goals = loadGoals();
@@ -71,15 +99,45 @@ export default function MyPage() {
 
   // 編集モーダルを開いたときにフォームを現在のプロフィールで初期化
   useEffect(() => {
-    if (profileEditOpen && profile) {
-      setEditForm(profile);
+    if (profileEditOpen) {
+      const name =
+        firestoreProfile?.displayName ?? profile?.name ?? "TOMOYA";
+      const university =
+        firestoreProfile?.university ?? profile?.university ?? "〇〇大学";
+      const status =
+        firestoreProfile?.grade ?? profile?.status ?? "3年生";
+      const graduationDate =
+        firestoreProfile?.graduationDate ??
+        profile?.graduationDate ??
+        "2028-03-31";
+      setEditForm({ name, university, status, graduationDate });
     }
-  }, [profileEditOpen, profile]);
+  }, [profileEditOpen, profile, firestoreProfile]);
 
-  const handleProfileSave = () => {
+  const handleProfileSave = async () => {
     saveProfile(editForm);
     setProfile(editForm);
     setProfileEditOpen(false);
+    if (user?.uid) {
+      try {
+        await saveUserProfile(getDb(), user.uid, {
+          displayName: editForm.name,
+          university: editForm.university,
+          grade: editForm.status,
+          isProfileCompleted: true,
+          graduationDate: editForm.graduationDate,
+        });
+        setFirestoreProfile({
+          displayName: editForm.name,
+          university: editForm.university,
+          grade: editForm.status,
+          isProfileCompleted: true,
+          graduationDate: editForm.graduationDate,
+        });
+      } catch {
+        // Firestore 保存失敗時も localStorage は更新済み
+      }
+    }
   };
 
   return (
@@ -109,18 +167,32 @@ export default function MyPage() {
                 <div className="flex flex-row items-center gap-3 sm:flex-col sm:gap-6 md:flex-row md:gap-10">
                   <Avatar className="size-16 shrink-0 border-2 border-sky-100 dark:border-sky-900/50 sm:size-28 md:size-32">
                     <AvatarFallback className="bg-sky-100 text-lg font-semibold text-sky-700 sm:text-3xl dark:bg-sky-900/50 dark:text-sky-300">
-                      {(profile?.name ?? "T")[0]?.toUpperCase() ?? "T"}
+                      {(firestoreProfile?.displayName ??
+                        profile?.name ??
+                        "?")[0]?.toUpperCase() ?? "?"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex min-w-0 flex-1 flex-col items-start text-left">
                     <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-3xl md:text-[2.25rem]">
-                      {profile?.name ?? "TOMOYA"}
+                      {firestoreProfile?.displayName ??
+                        profile?.name ??
+                        "ユーザー名を設定"}
                     </h2>
                     <Badge
                       variant="secondary"
                       className="mt-1 px-2 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 sm:mt-4 sm:px-4 sm:py-1.5 sm:text-base dark:bg-sky-900/50 dark:text-sky-200"
                     >
-                      {[profile?.university, profile?.status].filter(Boolean).join(" ") || "プロフィールを設定"}
+                      {[firestoreProfile?.university, firestoreProfile?.grade]
+                        .filter(Boolean).length > 0
+                        ? [firestoreProfile?.university, firestoreProfile?.grade]
+                            .filter(Boolean)
+                            .join(" ・ ")
+                        : [profile?.university, profile?.status].filter(Boolean)
+                            .length > 0
+                          ? [profile?.university, profile?.status]
+                              .filter(Boolean)
+                              .join(" ・ ")
+                          : "大学名・学年を設定"}
                     </Badge>
                   </div>
                 </div>

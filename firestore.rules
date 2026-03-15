@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ユーザープロフィール: 認証済みユーザーが読み書き可能
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ジャーナル
+    match /journals/{journalId} {
+      // 公開ジャーナルは全員が読み取り可能
+      allow read: if resource.data.isPublic == true || resource.data.visibility == 'public';
+      // 作成・更新・削除は所有者のみ（likes の更新を含む）
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // コメント（サブコレクション）: 認証済みユーザーが読み取り・投稿可能
+    match /journals/{journalId}/comments/{commentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // 以下、他コレクションのルールがあれば追加
+  }
+}

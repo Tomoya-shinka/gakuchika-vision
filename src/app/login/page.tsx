@@ -1,0 +1,131 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { GraduationCap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/auth-context";
+import { cn } from "@/lib/utils";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { user, loading: authLoading, signInWithEmail } = useAuth();
+  const isDev =
+    typeof process !== "undefined" && process.env.NODE_ENV === "development";
+  const [email, setEmail] = useState(isDev ? "test@test.com" : "");
+  const [password, setPassword] = useState(isDev ? "visionjournal1" : "");
+  const [error, setError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/");
+    }
+  }, [user, authLoading, router]);
+
+  const handleSignIn = async () => {
+    setError("");
+    if (!email.trim() || !password) {
+      setError("メールアドレスとパスワードを入力してください");
+      return;
+    }
+    setFormLoading(true);
+    try {
+      await signInWithEmail(email.trim(), password);
+      router.replace("/");
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "code" in err
+          ? (err as { code?: string }).code === "auth/invalid-credential"
+            ? "メールアドレスまたはパスワードが正しくありません"
+            : (err as { message?: string }).message ?? "ログインに失敗しました"
+          : "ログインに失敗しました";
+      setError(msg);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  if (authLoading || user) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background">
+        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-background p-4">
+      <div
+        className={cn(
+          "w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-sm",
+          "shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+        )}
+      >
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <GraduationCap className="size-7" />
+          </div>
+          <h1 className="text-xl font-semibold text-foreground">ガクチカビジョン</h1>
+          <p className="text-sm text-muted-foreground">大学生向け ガクチカ蓄積アプリ</p>
+        </div>
+
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="login-email">メールアドレス</Label>
+            <Input
+              id="login-email"
+              type="email"
+              placeholder="example@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              disabled={formLoading}
+              className="border-border"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="login-password">パスワード</Label>
+            <Input
+              id="login-password"
+              type="password"
+              placeholder="6文字以上"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              disabled={formLoading}
+              className="border-border"
+            />
+          </div>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="space-y-3">
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleSignIn}
+              disabled={formLoading}
+            >
+              ログイン
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full border-border"
+              size="lg"
+              disabled={formLoading}
+              asChild
+            >
+              <Link href="/signup">新規登録</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -15,7 +15,24 @@ import { Progress } from "@/components/ui/progress";
 import { loadEntries, computeJournalStats } from "@/lib/journal";
 import { loadGoals, type GoalsData } from "@/lib/goals";
 import { loadProfile, getGraduationTargetISO } from "@/lib/user-profile";
-import { BookOpen, PenLine, Flame, FileText, Target, Flag, Calendar } from "lucide-react";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  Timestamp,
+} from "firebase/firestore";
+import { useAuth } from "@/contexts/auth-context";
+import { getDb } from "@/lib/firebase";
+import {
+  BookOpen,
+  CalendarDays,
+  Flame,
+  FileText,
+  Target,
+  Flag,
+  Calendar,
+} from "lucide-react";
 
 const DEFAULT_GRADUATION_DATE = "2028-03-31";
 const ENROLLMENT_DATE = "2024-04-01"; // 入学日（4年制想定）
@@ -52,12 +69,6 @@ function getProgressPercent(graduationDate: string): number {
   return Math.min(100, Math.max(0, (elapsed / total) * 100));
 }
 
-function formatNumber(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}千`;
-  return n.toLocaleString();
-}
-
 const quotes: { text: string; author: string }[] = [
   { text: "努力できるということも実力のうちだ。", author: "野村克也" },
   { text: "小さいことを積み重ねるのが、とんでもないところへ行くただひとつの道。", author: "イチロー" },
@@ -71,7 +82,9 @@ const DELETING_SPEED_MS = 50;
 const WAIT_AFTER_FULL_MS = 3000;
 
 export default function HomePage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState({ totalCount: 0, totalChars: 0, streakDays: 0 });
+  const [monthlyJournalCount, setMonthlyJournalCount] = useState(0);
   const [graduationDate, setGraduationDate] = useState(DEFAULT_GRADUATION_DATE);
   const [countdown, setCountdown] = useState<CountdownParts>({
     days: 0,
@@ -96,6 +109,24 @@ export default function HomePage() {
     setStats(computeJournalStats(entries));
     setGoals(loadGoals());
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setMonthlyJournalCount(0);
+      return;
+    }
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const q = query(
+      collection(getDb(), "journals"),
+      where("userId", "==", user.uid),
+      where("createdAt", ">=", Timestamp.fromDate(startOfMonth))
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMonthlyJournalCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   useEffect(() => {
     setProgressPercent(Math.round(getProgressPercent(graduationDate) * 100) / 100);
@@ -234,18 +265,18 @@ export default function HomePage() {
               <Card className="gap-1 py-2 transition-shadow hover:shadow-md sm:gap-6 sm:py-6">
                 <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1 sm:gap-3 sm:pb-2 sm:pr-6">
                   <div className="shrink-0 rounded-md bg-violet-100 p-1 dark:bg-violet-900/40 sm:rounded-lg sm:p-2">
-                    <PenLine className="size-4 text-violet-600 dark:text-violet-400 sm:size-5" />
+                    <CalendarDays className="size-4 text-violet-600 dark:text-violet-400 sm:size-5" />
                   </div>
                   <CardTitle className="truncate text-[10px] font-medium sm:text-base">
-                    累計文字数
+                    今月のジャーナル数
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
                   <p className="text-base font-bold sm:text-2xl">
-                    {formatNumber(stats.totalChars)}
+                    {monthlyJournalCount}
                   </p>
                   <CardDescription className="hidden text-xs sm:block">
-                    これまでに入力した全文字
+                    今月書いた日記の合計
                   </CardDescription>
                 </CardContent>
               </Card>

@@ -1,13 +1,11 @@
+"use client";
+
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { AuthGuard } from "@/components/auth-guard";
 
-export default function MainLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function FeedLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <SidebarProvider>
@@ -22,3 +20,4 @@ export default function MainLayout({
     </AuthGuard>
   );
 }
+
