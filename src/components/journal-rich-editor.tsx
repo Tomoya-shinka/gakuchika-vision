@@ -228,7 +228,9 @@ export function JournalRichEditor({
       });
     };
     editor.on("transaction", ensureParagraphWhenEmpty);
-    return () => editor.off("transaction", ensureParagraphWhenEmpty);
+    return () => {
+      editor.off("transaction", ensureParagraphWhenEmpty);
+    };
   }, [editor]);
 
   if (!editor) return null;
