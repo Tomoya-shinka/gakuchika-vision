@@ -16,7 +16,10 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { getAuthInstance } from "@/lib/firebase";
+import {
+  getAuthInstance,
+  hasValidFirebaseConfig,
+} from "@/lib/firebase";
 
 interface AuthContextValue {
   user: User | null;
@@ -32,30 +35,38 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const auth = getAuthInstance();
 
   useEffect(() => {
+    if (!hasValidFirebaseConfig) {
+      setLoading(false);
+      return;
+    }
+    const auth = getAuthInstance();
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [auth]);
+  }, []);
 
   const signInWithGoogle = async () => {
+    const auth = getAuthInstance();
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    const auth = getAuthInstance();
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
+    const auth = getAuthInstance();
     await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const signOut = async () => {
+    const auth = getAuthInstance();
     await firebaseSignOut(auth);
   };
 

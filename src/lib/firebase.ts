@@ -11,14 +11,31 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+/** ビルド時（Vercel 等で env 未設定）に Firebase を初期化しないために使用 */
+export const hasValidFirebaseConfig =
+  typeof firebaseConfig.apiKey === "string" && firebaseConfig.apiKey.length > 0;
+
 let app: FirebaseApp | undefined;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!app) {
+    if (!hasValidFirebaseConfig) {
+      throw new Error(
+        "Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars."
+      );
+    }
     app = initializeApp(firebaseConfig);
   }
   return app;
 }
 
-export const getAuthInstance = () => getAuth(getFirebaseApp());
+export function getAuthInstance() {
+  if (!hasValidFirebaseConfig) {
+    throw new Error(
+      "Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars."
+    );
+  }
+  return getAuth(getFirebaseApp());
+}
+
 export const getDb = () => getFirestore(getFirebaseApp());
