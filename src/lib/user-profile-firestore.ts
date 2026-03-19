@@ -12,6 +12,7 @@ export interface FirestoreUserProfile {
   grade: string;
   isProfileCompleted: boolean;
   graduationDate?: string;
+  enrollmentDate?: string;
 }
 
 const DEFAULT_GRADUATION = "2028-03-31";
@@ -33,6 +34,10 @@ export async function getUserProfile(
       typeof d?.graduationDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.graduationDate)
         ? d.graduationDate
         : undefined,
+    enrollmentDate:
+      typeof d?.enrollmentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.enrollmentDate)
+        ? d.enrollmentDate
+        : undefined,
   };
 }
 
@@ -45,6 +50,7 @@ export async function saveUserProfile(
     grade: string;
     isProfileCompleted: boolean;
     graduationDate?: string;
+    enrollmentDate?: string;
   }
 ): Promise<void> {
   const ref = doc(db, "users", uid);

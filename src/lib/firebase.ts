@@ -1,4 +1,4 @@
-import { initializeApp, type FirebaseApp } from "firebase/app";
+import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -18,14 +18,18 @@ export const hasValidFirebaseConfig =
 let app: FirebaseApp | undefined;
 
 export function getFirebaseApp(): FirebaseApp {
-  if (!app) {
-    if (!hasValidFirebaseConfig) {
-      throw new Error(
-        "Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars."
-      );
-    }
-    app = initializeApp(firebaseConfig);
+  if (app) return app;
+  if (!hasValidFirebaseConfig) {
+    throw new Error(
+      "Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars."
+    );
   }
+  const existing = getApps();
+  if (existing.length > 0) {
+    app = getApp() as FirebaseApp;
+    return app;
+  }
+  app = initializeApp(firebaseConfig);
   return app;
 }
 

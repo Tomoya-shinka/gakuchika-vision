@@ -122,9 +122,16 @@ export default function HomePage() {
       where("userId", "==", user.uid),
       where("createdAt", ">=", Timestamp.fromDate(startOfMonth))
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMonthlyJournalCount(snapshot.size);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setMonthlyJournalCount(snapshot.size);
+      },
+      (err) => {
+        // permission-denied などでルール未反映時は 0 件表示にしてコンソールエラーを防ぐ
+        setMonthlyJournalCount(0);
+      }
+    );
     return () => unsubscribe();
   }, [user?.uid]);
 

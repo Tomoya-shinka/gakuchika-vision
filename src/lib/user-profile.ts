@@ -8,6 +8,8 @@ export interface UserProfile {
   status: string;
   /** 卒業予定日 YYYY-MM-DD（カウントダウン用） */
   graduationDate: string;
+  /** 入学年月日 YYYY-MM-DD（大学生活○日目用） */
+  enrollmentDate?: string;
 }
 
 export const USER_PROFILE_STORAGE_KEY = "user_profile";
@@ -35,7 +37,11 @@ export function loadProfile(): UserProfile {
     const graduationDate = isValidDate(String(parsed.graduationDate ?? ""))
       ? String(parsed.graduationDate)
       : defaultProfile.graduationDate;
-    return { name, university, status, graduationDate };
+    const enrollmentDateRaw = String(parsed.enrollmentDate ?? "").trim();
+    const enrollmentDate = isValidDate(enrollmentDateRaw)
+      ? enrollmentDateRaw
+      : undefined;
+    return { name, university, status, graduationDate, enrollmentDate };
   } catch {
     return { ...defaultProfile };
   }

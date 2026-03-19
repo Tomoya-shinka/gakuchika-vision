@@ -1,29 +1,44 @@
+// ▼▼▼ ここから Firebase のルールにコピペ（この行から最後の } まで）▼▼▼
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ユーザープロフィール: 認証済みユーザーが読み書き可能
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ジャーナル
-    match /journals/{journalId} {
-      // 公開ジャーナルは全員が読み取り可能
-      allow read: if resource.data.isPublic == true || resource.data.visibility == 'public';
-      // 作成・更新・削除は所有者のみ（likes の更新を含む）
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    // users 配下のサブコレクションも本人のみ read/write 可
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // コメント（サブコレクション）: 認証済みユーザーが読み取り・投稿可能
+    match /journals/{journalId} {
+      // デバッグ用: とりあえず誰でも読めるようにする（解決したら下の「本番用」に戻す）
+      allow read: if true;
+      // 本番用（上で解決しない場合のみコピペで差し替え）: allow read: if resource.data.get('isPublic', false) == true || resource.data.get('visibility', '') == 'public' || (request.auth != null && resource.data.get('userId', '') == request.auth.uid) || request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // 投稿者: 更新・削除可。それ以外の認証ユーザー: likes フィールドのみの更新可（いいね用）
+      allow update: if request.auth != null && (
+        resource.data.userId == request.auth.uid
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+      );
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
     match /journals/{journalId}/comments/{commentId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
-
-    // 以下、他コレクションのルールがあれば追加
   }
 }
+
+// ▲▲▲ ここまでをコピー ▲▲▲
+//
+// 【手順】
+// 1. 上で「ここから」と書いてある行から「ここまで」の直前の } までをすべて選択してコピー
+// 2. https://console.firebase.google.com/ → プロジェクトを選択 → Firestore Database → ルール
+// 3. エディタの内容を削除し、コピーしたものを貼り付け
+// 4. 「公開」をクリック

@@ -1,22 +1,115 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { getDb } from "@/lib/firebase";
 import { ArrowLeft } from "lucide-react";
 import { loadEntries, formatDate } from "@/lib/journal";
+
+type FirestoreEntry = {
+  id: string;
+  title?: string;
+  content: string;
+  createdAt: string;
+  isPublic: boolean;
+};
 
 export default function JournalDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = String(params.id ?? "");
+  const [firestoreEntry, setFirestoreEntry] = useState<FirestoreEntry | null | undefined>(undefined);
 
-  const entry = useMemo(
+  const localEntry = useMemo(
     () => loadEntries().find((e) => e.id === id),
     [id]
   );
 
-  if (!entry) {
+  useEffect(() => {
+    if (localEntry || !id) {
+      setFirestoreEntry(null);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(getDb(), "journals", id))
+      .then((snap) => {
+        if (cancelled) return;
+        if (!snap.exists()) {
+          setFirestoreEntry(null);
+          return;
+        }
+        const data = snap.data();
+        const createdAt = data.createdAt instanceof Timestamp
+          ? data.createdAt.toDate().toISOString()
+          : String(data.createdAt ?? "");
+        setFirestoreEntry({
+          id: snap.id,
+          title: data.title != null ? String(data.title) : undefined,
+          content: String(data.content ?? ""),
+          createdAt,
+          isPublic: data.isPublic === true,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setFirestoreEntry(null);
+      });
+    return () => { cancelled = true; };
+  }, [id, localEntry]);
+
+  const entry = useMemo(() => {
+    if (localEntry) {
+      return {
+        id: localEntry.id,
+        title: localEntry.title,
+        content: localEntry.content,
+        createdAt: localEntry.createdAt,
+        visibility: localEntry.visibility,
+        isPublic: localEntry.visibility === "public",
+      };
+    }
+    if (firestoreEntry) {
+      return {
+        id: firestoreEntry.id,
+        title: firestoreEntry.title,
+        content: firestoreEntry.content,
+        createdAt: firestoreEntry.createdAt,
+        visibility: firestoreEntry.isPublic ? "public" : "private",
+        isPublic: firestoreEntry.isPublic,
+      };
+    }
+    return null;
+  }, [localEntry, firestoreEntry]);
+
+  const loading = localEntry === undefined && firestoreEntry === undefined && id.length > 0;
+  const notFound = !loading && !entry;
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            戻る
+          </button>
+          <h1 className="flex-1 text-center text-lg font-semibold">
+            ジャーナル詳細
+          </h1>
+          <span className="w-14" aria-hidden />
+        </header>
+        <main className="flex flex-1 items-center justify-center px-4 py-10">
+          <p className="text-sm text-muted-foreground">読み込み中…</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (notFound) {
     return (
       <div className="flex flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
@@ -50,9 +143,10 @@ export default function JournalDetailPage() {
     );
   }
 
-  const visibility = entry.visibility === "public" ? "public" : "private";
-  const badgeLabel = visibility === "public" ? "公開" : "非公開";
-  const badgeEmoji = visibility === "public" ? "🌏" : "🔒";
+  if (!entry) return null;
+
+  const badgeLabel = entry.isPublic ? "公開" : "非公開";
+  const badgeEmoji = entry.isPublic ? "🌏" : "🔒";
   const isHtml = entry.content.trim().startsWith("<");
 
   return (
@@ -104,4 +198,3 @@ export default function JournalDetailPage() {
     </div>
   );
 }
-

@@ -62,6 +62,7 @@ export default function MyPage() {
     university: "〇〇大学",
     status: "3年生",
     graduationDate: "2028-03-31",
+    enrollmentDate: "",
   });
 
   const loadProfileData = useCallback(async () => {
@@ -78,6 +79,7 @@ export default function MyPage() {
             university: fp.university || p.university,
             status: fp.grade || p.status,
             graduationDate: fp.graduationDate || p.graduationDate,
+            enrollmentDate: fp.enrollmentDate || p.enrollmentDate || "",
           });
         }
       } catch {
@@ -110,7 +112,9 @@ export default function MyPage() {
         firestoreProfile?.graduationDate ??
         profile?.graduationDate ??
         "2028-03-31";
-      setEditForm({ name, university, status, graduationDate });
+      const enrollmentDate =
+        firestoreProfile?.enrollmentDate ?? profile?.enrollmentDate ?? "";
+      setEditForm({ name, university, status, graduationDate, enrollmentDate });
     }
   }, [profileEditOpen, profile, firestoreProfile]);
 
@@ -126,6 +130,7 @@ export default function MyPage() {
           grade: editForm.status,
           isProfileCompleted: true,
           graduationDate: editForm.graduationDate,
+          enrollmentDate: editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
         });
         setFirestoreProfile({
           displayName: editForm.name,
@@ -133,6 +138,7 @@ export default function MyPage() {
           grade: editForm.status,
           isProfileCompleted: true,
           graduationDate: editForm.graduationDate,
+          enrollmentDate: editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
         });
       } catch {
         // Firestore 保存失敗時も localStorage は更新済み
@@ -298,6 +304,20 @@ export default function MyPage() {
                 onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
                 placeholder="3年生"
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="profile-enrollment">入学年月日</Label>
+              <Input
+                id="profile-enrollment"
+                type="date"
+                value={editForm.enrollmentDate ?? ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, enrollmentDate: e.target.value }))
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                入学年月日を設定すると「大学生活 ○日目」が各画面に表示されます。
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="profile-graduation">卒業予定日</Label>

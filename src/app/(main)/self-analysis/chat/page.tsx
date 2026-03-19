@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, PlusCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, Send, PlusCircle, RotateCcw, Check, Loader2 } from "lucide-react";
 
 import {
   SELF_ANALYSIS_SECTIONS,
@@ -89,6 +89,11 @@ export default function SelfAnalysisChatPage() {
   const [input, setInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [proposedSummary, setProposedSummary] = useState<string | null>(null);
+  const [finalProposal, setFinalProposal] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [isSavingFinal, setIsSavingFinal] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const hasInitialGreetingSent = useRef(false);
@@ -167,14 +172,79 @@ export default function SelfAnalysisChatPage() {
     if (!content || !user?.uid) return;
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       const db = getDb();
       await saveSelfAnalysisToFirestore(db, user.uid, validSection, content);
       router.push("/self-analysis");
-    } catch {
-      router.push("/self-analysis");
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "保存に失敗しました。もう一度お試しください。";
+      if (msg.includes("Missing or insufficient permissions")) {
+        setSaveError(
+          "権限エラー：Firestoreルールが未公開/未反映の可能性があります。Firebase Consoleでルールを公開してください。"
+        );
+        return;
+      }
+      setSaveError(
+        msg
+      );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (isCompleting || isLoading) return;
+    setIsCompleting(true);
+    setCompleteError(null);
+    try {
+      const res = await fetch("/api/chat/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages,
+          purpose: { kind: "self-analysis", sectionId: validSection ?? "small-wins" },
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Failed to complete chat");
+      }
+      const data = (await res.json()) as { proposal?: string };
+      const proposal = (data.proposal ?? "").trim();
+      setFinalProposal(proposal || null);
+      setTimeout(scrollToBottom, 50);
+    } catch (e) {
+      setCompleteError(e instanceof Error ? e.message : "通信エラーが発生しました");
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const handleSaveFinalToSheet = async () => {
+    const content = finalProposal?.trim();
+    if (!content || !user?.uid) return;
+    setIsSavingFinal(true);
+    setSaveError(null);
+    try {
+      const db = getDb();
+      await saveSelfAnalysisToFirestore(db, user.uid, validSection ?? "small-wins", content);
+      router.push("/self-analysis");
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "保存に失敗しました。もう一度お試しください。";
+      if (msg.includes("Missing or insufficient permissions")) {
+        setSaveError(
+          "権限エラー：Firestoreルールが未公開/未反映の可能性があります。Firebase Consoleでルールを公開してください。"
+        );
+        return;
+      }
+      setSaveError(
+        msg
+      );
+    } finally {
+      setIsSavingFinal(false);
     }
   };
 
@@ -199,7 +269,30 @@ export default function SelfAnalysisChatPage() {
         <h1 className="text-sm font-semibold text-foreground">
           AIと自己分析中：{sectionTitle}について
         </h1>
-        <div className="w-16" />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleComplete}
+          disabled={isLoading || isCompleting || messages.length === 0}
+          className={cn(
+            "gap-2 border-2",
+            "border-primary text-primary hover:bg-primary/10",
+            "disabled:opacity-60"
+          )}
+        >
+          {isCompleting ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              まとめ中...
+            </>
+          ) : (
+            <>
+              <Check className="size-4" />
+              完了
+            </>
+          )}
+        </Button>
       </header>
 
       {/* Chat */}
@@ -266,6 +359,9 @@ export default function SelfAnalysisChatPage() {
               <p className="text-sm font-medium text-foreground">
                 「{proposedSummary}」
               </p>
+              {saveError && (
+                <p className="text-sm text-destructive">{saveError}</p>
+              )}
               <Button
                 className="w-full gap-2"
                 onClick={handleAddToSheet}
@@ -274,6 +370,54 @@ export default function SelfAnalysisChatPage() {
                 <PlusCircle className="size-4" />
                 シートに追加する
               </Button>
+            </div>
+          )}
+          {(finalProposal || completeError) && (
+            <div className="flex flex-col gap-3 rounded-xl border-2 border-primary/40 bg-primary/5 p-4">
+              <p className="text-sm font-semibold text-foreground">
+                ✨ あなたへの最終提案
+              </p>
+              {completeError ? (
+                <p className="text-sm text-destructive">{completeError}</p>
+              ) : (
+                <p className="whitespace-pre-wrap break-words text-sm text-foreground">
+                  {finalProposal}
+                </p>
+              )}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  className="w-full gap-2 sm:w-auto"
+                  onClick={handleSaveFinalToSheet}
+                  disabled={!finalProposal || isSavingFinal}
+                >
+                  {isSavingFinal ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="size-4" />
+                      自己分析シートへ保存
+                    </>
+                  )}
+                </Button>
+                {saveError && (
+                  <p className="text-sm text-destructive sm:self-center">
+                    {saveError}
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={handleComplete}
+                  disabled={isLoading || isCompleting}
+                >
+                  もう一度作る
+                </Button>
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />

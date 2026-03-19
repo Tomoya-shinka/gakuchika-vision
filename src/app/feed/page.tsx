@@ -57,6 +57,8 @@ type FeedJournal = {
   createdAt: string;
   isPublic: boolean;
   likes: string[];
+  commentCount?: number;
+  universityDay?: number;
 };
 
 type Comment = {
@@ -142,6 +144,10 @@ export default function FeedPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<{
+    code: string;
+    projectId: string;
+  } | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -298,107 +304,105 @@ export default function FeedPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorDetail(null);
     setIsDemoMode(false);
     try {
-      console.log(
-        "[feed] query:",
-        'collection("journals"), where("isPublic","==",true), orderBy("createdAt","desc")'
-      );
-
-      const db = getDb();
-      const base = collection(db, "journals");
-
-      // 要件: isPublic == true のデータを最新順に取得
-      // NOTE: Firestore の複合インデックスが未作成/反映待ちでも動くように、
-      // インデックス必須のクエリが落ちたら orderBy なしで取得し、クライアント側でソートする。
-      let snap1: Awaited<ReturnType<typeof getDocs>>;
-      try {
-        snap1 = await getDocs(
-          query(
-            base,
-            where("isPublic", "==", true),
-            orderBy("createdAt", "desc"),
-            limit(50)
-          )
+      // まずサーバーAPIで取得（クライアントの Firestore ルールに依存しない）
+      const res = await fetch("/api/feed/journals", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as
+          | { items?: FeedJournal[]; authors?: Record<string, AuthorProfile> }
+          | FeedJournal[];
+        const rows = Array.isArray(data) ? data : data.items ?? [];
+        const apiAuthors = Array.isArray(data) ? null : data.authors ?? null;
+        const filtered = (rows as FeedJournal[]).filter(
+          (r) => r && r.userId && r.content
         );
-      } catch {
-        snap1 = await getDocs(
-          query(base, where("isPublic", "==", true), limit(200))
+        filtered.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
+        setItems(filtered.slice(0, 50));
+        // 著者情報は API の authors のみ使用（クライアントで users を読むと permission-denied になるため絶対に呼ばない）
+        const nextAuthors: Record<string, AuthorProfile | null> = { ...authors };
+        const uids = Array.from(new Set(filtered.map((r) => r.userId))).filter(Boolean);
+        for (const uid of uids) {
+          if (apiAuthors?.[uid]) {
+            nextAuthors[uid] = apiAuthors[uid];
+          } else {
+            nextAuthors[uid] = { displayName: "ユーザー", university: "", grade: "" };
+          }
+        }
+        setAuthors(nextAuthors);
+        return;
       }
 
-      // 既存データ互換: visibility == "public" しか無い場合のフォールバック
-      let snap = snap1;
-      if (snap1.size === 0) {
-        try {
-          snap = await getDocs(
-            query(
-              base,
-              where("visibility", "==", "public"),
-              orderBy("createdAt", "desc"),
-              limit(50)
-            )
-          );
-        } catch {
-          snap = await getDocs(
-            query(base, where("visibility", "==", "public"), limit(200))
+      if (res.status === 503) {
+        const body = await res.json().catch(() => ({}));
+        let msg = typeof body?.error === "string" ? body.error : "サーバーで Firebase Admin が未設定です。";
+        if (typeof body?.debug === "string") msg += " " + body.debug;
+        setError(msg);
+        setErrorDetail({
+          code: "service_unavailable",
+          projectId:
+            typeof process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "string"
+              ? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              : "(未設定)",
+        });
+        if (process.env.NODE_ENV !== "production") {
+          setIsDemoMode(true);
+          setItems(DEMO_ITEMS);
+          setAuthors(
+            Object.fromEntries(
+              Object.entries(DEMO_AUTHORS).map(([k, v]) => [k, v])
+            ) as Record<string, AuthorProfile>
           );
         }
+        return;
       }
 
-      const rows: FeedJournal[] = snap.docs.map((d) => {
-        const data = d.data() as Record<string, unknown>;
-        const isPublic =
-          data.isPublic === true || String(data.visibility ?? "") === "public";
-        const rawLikes = data.likes;
-        const likes = Array.isArray(rawLikes)
-          ? (rawLikes as string[]).filter((x) => typeof x === "string")
-          : [];
-        return {
-          id: d.id,
-          userId: String(data.userId ?? ""),
-          title:
-            typeof data.title === "string" && data.title.trim()
-              ? data.title.trim()
-              : undefined,
-          content: String(data.content ?? ""),
-          createdAt: toIso(data.createdAt),
-          isPublic,
-          likes,
-        };
+      // API が 500 などで失敗した場合はクライアントにフォールバックしない（permission-denied を防ぐ）
+      const body = await res.json().catch(() => ({}));
+      const apiMsg = typeof body?.error === "string" ? body.error : `サーバーエラー (${res.status})`;
+      setError(apiMsg);
+      setErrorDetail({
+        code: "api_error",
+        projectId:
+          typeof process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "string"
+            ? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+            : "(未設定)",
       });
-
-      const filtered = rows.filter((r) => r.isPublic && r.userId && r.content);
-      filtered.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      setItems(filtered.slice(0, 50));
-
-      console.log(
-        "[feed] loaded journals:",
-        `raw=${rows.length}, publicFiltered=${filtered.length}`
-      );
-
-      // 著者プロフィールをまとめて取得（簡易キャッシュ）
-      const uniqueUids = Array.from(new Set(rows.map((r) => r.userId))).filter(
-        Boolean
-      );
-      const nextAuthors: Record<string, AuthorProfile | null> = { ...authors };
-      await Promise.all(
-        uniqueUids.map(async (uid) => {
-          if (uid in nextAuthors) return;
-          nextAuthors[uid] = await fetchAuthorProfile(uid);
-        })
-      );
-      setAuthors(nextAuthors);
+      if (process.env.NODE_ENV !== "production") {
+        setIsDemoMode(true);
+        setItems(DEMO_ITEMS);
+        setAuthors(
+          Object.fromEntries(
+            Object.entries(DEMO_AUTHORS).map(([k, v]) => [k, v])
+          ) as Record<string, AuthorProfile>
+        );
+      }
+      return;
     } catch (e) {
       const msg =
         e instanceof Error && typeof e.message === "string"
           ? e.message
           : "読み込みに失敗しました";
+      const code =
+        e && typeof e === "object" && "code" in e
+          ? String((e as { code: unknown }).code)
+          : "";
+      const projectId =
+        typeof process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "string"
+          ? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+          : "(未設定)";
 
       console.error("[feed] failed to load public journals:", e);
+      console.error(
+        "[feed] projectId:",
+        projectId,
+        "error.code:",
+        code || "(なし)"
+      );
 
       if (msg.includes("The query requires an index")) {
         console.warn(
@@ -407,6 +411,7 @@ export default function FeedPage() {
       }
 
       setError(msg);
+      setErrorDetail({ code, projectId });
 
       // 開発時のUI確認用: Firestoreが落ちたらデモデータで表示
       if (process.env.NODE_ENV !== "production") {
@@ -463,6 +468,91 @@ export default function FeedPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {error}
                 </p>
+                {errorDetail && errorDetail.code !== "service_unavailable" && (
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    プロジェクトID: <code className="rounded bg-muted px-1">{errorDetail.projectId}</code>
+                    {errorDetail.code ? (
+                      <> ・ エラーコード: <code className="rounded bg-muted px-1">{errorDetail.code}</code></>
+                    ) : null}
+                    {" — "}
+                    Firebase Console でこのプロジェクトを開き、Firestore のルールを公開したか確認してください。
+                  </p>
+                )}
+                {errorDetail?.code === "service_unavailable" && (
+                  <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-slate-300">
+                    <p>
+                      プロジェクト: <code className="rounded bg-muted px-1">{errorDetail.projectId}</code>
+                    </p>
+                    <ol className="list-inside list-decimal space-y-1">
+                      <li>
+                        <a
+                          href={
+                            errorDetail.projectId && errorDetail.projectId !== "(未設定)"
+                              ? `https://console.firebase.google.com/project/${errorDetail.projectId}/settings/serviceaccounts/adminsdk`
+                              : "https://console.firebase.google.com/"
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-primary underline"
+                        >
+                          サービスアカウントの鍵を取得
+                        </a>
+                        →「新しい秘密鍵の生成」で JSON をダウンロード
+                      </li>
+                      <li>
+                        ダウンロードした JSON をプロジェクトのフォルダに置き、<code className="rounded bg-muted px-1">firebase-service-account.json</code> にリネーム（またはそのままのファイル名でも可）
+                      </li>
+                      <li>
+                        <code className="rounded bg-muted px-1">.env.local</code> に 1 行追加:{" "}
+                        <code className="rounded bg-muted px-1">FIREBASE_SERVICE_ACCOUNT_KEY_PATH=./firebase-service-account.json</code>
+                        （ファイル名を変えた場合はそれに合わせる）
+                      </li>
+                      <li>開発サーバーを止めて <code className="rounded bg-muted px-1">npm run dev</code> で再起動 → このページで「再読み込み」</li>
+                    </ol>
+                    <Button variant="secondary" size="sm" className="w-fit gap-2" asChild>
+                      <a
+                        href={
+                          errorDetail.projectId && errorDetail.projectId !== "(未設定)"
+                            ? `https://console.firebase.google.com/project/${errorDetail.projectId}/settings/serviceaccounts/adminsdk`
+                            : "https://console.firebase.google.com/"
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        サービスアカウント設定を開く
+                      </a>
+                    </Button>
+                  </div>
+                )}
+                {/missing or insufficient permissions/i.test(error) && (
+                  <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-slate-300">
+                    <p>Firestore のルールが未反映の可能性があります。</p>
+                    <ol className="list-inside list-decimal space-y-1">
+                      <li>プロジェクトの <code className="rounded bg-muted px-1">firestore.rules</code> を開き、「ここから」～「ここまで」をコピー</li>
+                      <li>下のボタンで Firebase のルール画面を開く</li>
+                      <li>エディタに貼り付けて「公開」をクリック</li>
+                      <li>このページで「再読み込み」を押す</li>
+                    </ol>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-fit gap-2"
+                      asChild
+                    >
+                      <a
+                        href={
+                          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+                            ? `https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/firestore/rules`
+                            : "https://console.firebase.google.com/"
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Firebase のルール画面を開く
+                      </a>
+                    </Button>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -515,8 +605,13 @@ export default function FeedPage() {
                               {subtitle || "プロフィール未設定"}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                            {formatDate(item.createdAt)}
+                          <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+                            <span>{formatDate(item.createdAt)}</span>
+                            {typeof item.universityDay === "number" && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                                大学生活 {item.universityDay}日目
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -608,7 +703,9 @@ export default function FeedPage() {
                       >
                         <MessageCircle className="size-4" aria-hidden />
                         <span className="min-w-[1ch] text-[11px] sm:inline">
-                          {(comments[item.id] ?? []).length}
+                          {comments[item.id] !== undefined
+                            ? comments[item.id].length
+                            : (item.commentCount ?? 0)}
                         </span>
                       </button>
                       <button

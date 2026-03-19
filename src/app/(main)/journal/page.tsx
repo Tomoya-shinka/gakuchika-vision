@@ -20,7 +20,7 @@ import {
   type GoalItem,
 } from "@/lib/goals";
 import { getDb } from "@/lib/firebase";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp, doc, getDoc } from "firebase/firestore";
 import {
   Sparkles,
   FileText,
@@ -66,6 +66,7 @@ import { StyleSelector } from "@/components/style-selector";
 import type { Editor } from "@tiptap/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { calculateUnivDay, formatUniversityDayLabel } from "@/lib/university-life";
 
 type JournalTemplate = "free";
 
@@ -183,12 +184,32 @@ export default function JournalPage() {
   const [freeEditorKey, setFreeEditorKey] = useState(0);
   const [freeEditorEmpty, setFreeEditorEmpty] = useState(true);
   const [freeEditorCharCount, setFreeEditorCharCount] = useState(0);
+  const [todayDayLabel, setTodayDayLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (goalsPanelOpen) {
       setGoalsData(loadGoals());
     }
   }, [goalsPanelOpen]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setTodayDayLabel(null);
+      return;
+    }
+    const load = async () => {
+      try {
+        const snap = await getDoc(doc(getDb(), "users", user.uid));
+        const data = snap.data() as Record<string, unknown> | undefined;
+        const enrollment = data?.enrollmentDate ?? undefined;
+        const day = calculateUnivDay(new Date(), enrollment);
+        setTodayDayLabel(day != null ? formatUniversityDayLabel(day) : null);
+      } catch {
+        setTodayDayLabel(null);
+      }
+    };
+    load();
+  }, [user?.uid]);
 
   const handleAiTheme = () => {
     setAiQuestion(getRandomQuestion());
@@ -204,33 +225,39 @@ export default function JournalPage() {
 
     setIsSaving(true);
     try {
+      const createdAt = new Date().toISOString();
+      let entryId = crypto.randomUUID();
+
+      if (user?.uid) {
+        try {
+          const db = getDb();
+          const ref = await addDoc(collection(db, "journals"), {
+            userId: user.uid,
+            title: title.trim() || "",
+            content: trimmed,
+            createdAt: Timestamp.fromDate(new Date(createdAt)),
+            isPublic: visibility === "public",
+            visibility,
+          });
+          entryId = ref.id;
+        } catch (err) {
+          console.error("[journal] failed to save entry to Firestore:", err);
+          toast.error("保存に失敗しました");
+          return;
+        }
+      }
+
       const newEntry: JournalEntry = {
-        id: crypto.randomUUID(),
+        id: entryId,
         content: trimmed,
         title: title.trim() || undefined,
         visibility,
-        createdAt: new Date().toISOString(),
+        createdAt,
         category: "未分類",
       };
 
       const updated = [newEntry, ...loadEntries()];
       saveEntries(updated);
-
-      if (visibility === "public" && user?.uid) {
-        try {
-          const db = getDb();
-          await addDoc(collection(db, "journals"), {
-            userId: user.uid,
-            title: newEntry.title ?? "",
-            content: newEntry.content,
-            createdAt: Timestamp.fromDate(new Date(newEntry.createdAt)),
-            isPublic: true,
-            visibility: "public",
-          });
-        } catch (err) {
-          console.error("[journal] failed to save public entry to Firestore:", err);
-        }
-      }
 
       setTitle("");
       setContent("");
@@ -432,6 +459,16 @@ export default function JournalPage() {
           </Button>
         </div>
       </header>
+
+      {todayDayLabel ? (
+        <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200 sm:px-6">
+          {todayDayLabel}
+        </div>
+      ) : (
+        <div className="border-b border-slate-100 bg-amber-50/80 px-4 py-2 text-xs text-amber-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-amber-300 sm:px-6">
+          入学年月日を設定すると、ここに「大学生活 ○日目」が表示されます（My Page のプロフィール編集から設定できます）。
+        </div>
+      )}
 
       <main className="flex flex-1 flex-col overflow-auto">
         <div
