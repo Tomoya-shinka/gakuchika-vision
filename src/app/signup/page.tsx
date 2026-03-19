@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
+import { getFirebaseConfigErrorMessage } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
 export default function SignupPage() {
@@ -20,6 +21,7 @@ export default function SignupPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const firebaseConfigError = getFirebaseConfigErrorMessage();
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -29,6 +31,10 @@ export default function SignupPage() {
 
   const handleSubmit = async () => {
     setError("");
+    if (firebaseConfigError) {
+      setError(`認証設定エラー: ${firebaseConfigError}`);
+      return;
+    }
 
     if (!email.trim()) {
       setError("メールアドレスを入力してください");
@@ -52,12 +58,20 @@ export default function SignupPage() {
       await signUpWithEmail(email.trim(), password);
       router.replace("/setup-profile");
     } catch (err: unknown) {
-      const msg =
+      const code =
         err && typeof err === "object" && "code" in err
-          ? (err as { code?: string }).code === "auth/email-already-in-use"
-            ? "このメールアドレスはすでに登録されています"
-            : (err as { message?: string }).message ?? "アカウント作成に失敗しました"
-          : "アカウント作成に失敗しました";
+          ? String((err as { code?: string }).code ?? "")
+          : "";
+      const msg =
+        code === "auth/email-already-in-use"
+          ? "このメールアドレスはすでに登録されています"
+          : code === "auth/unauthorized-domain"
+            ? "認証ドメインが未許可です。Firebase Console の Authentication > Settings > Authorized domains に本番ドメインを追加してください。"
+            : code === "auth/invalid-api-key" || code === "auth/api-key-not-valid.-please-pass-a-valid-api-key."
+              ? "APIキー設定が不正です。デプロイ先の環境変数 NEXT_PUBLIC_FIREBASE_API_KEY を確認してください。"
+              : err && typeof err === "object" && "message" in err
+                ? String((err as { message?: string }).message ?? "アカウント作成に失敗しました")
+                : "アカウント作成に失敗しました";
       setError(msg);
     } finally {
       setFormLoading(false);
@@ -161,6 +175,11 @@ export default function SignupPage() {
           {error && (
             <p className="text-sm text-destructive" role="alert">
               {error}
+            </p>
+          )}
+          {!error && firebaseConfigError && (
+            <p className="text-sm text-destructive" role="alert">
+              認証設定エラー: {firebaseConfigError}
             </p>
           )}
           <Button
