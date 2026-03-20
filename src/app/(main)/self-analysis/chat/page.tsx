@@ -250,6 +250,11 @@ export default function SelfAnalysisChatPage() {
 
   const isLoading = status === "submitted" || status === "streaming";
   const hasError = !!error || status === "error";
+  const hasUserMessage = messages.some((m) => {
+    if (m.role !== "user") return false;
+    const text = getTextFromParts(m.parts ?? []);
+    return text.trim() !== START_MARKER;
+  });
   const showProposalCard =
     proposedSummary &&
     !isLoading &&
@@ -274,7 +279,7 @@ export default function SelfAnalysisChatPage() {
           variant="outline"
           size="sm"
           onClick={handleComplete}
-          disabled={isLoading || isCompleting || messages.length === 0}
+          disabled={isLoading || isCompleting || !hasUserMessage}
           className={cn(
             "gap-2 border-2",
             "border-primary text-primary hover:bg-primary/10",

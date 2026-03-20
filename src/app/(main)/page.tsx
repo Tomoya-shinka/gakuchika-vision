@@ -20,7 +20,6 @@ import {
   query,
   where,
   onSnapshot,
-  Timestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
@@ -104,31 +103,58 @@ export default function HomePage() {
     setGraduationDate(profile.graduationDate || DEFAULT_GRADUATION_DATE);
   }, []);
 
+  // ゴールはローカルストレージから
   useEffect(() => {
-    const entries = loadEntries();
-    setStats(computeJournalStats(entries));
     setGoals(loadGoals());
   }, []);
 
+  // ジャーナル統計：ログイン済みは Firestore、未ログインは localStorage
   useEffect(() => {
     if (!user?.uid) {
+      const entries = loadEntries();
+      setStats(computeJournalStats(entries));
       setMonthlyJournalCount(0);
       return;
     }
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const q = query(
       collection(getDb(), "journals"),
-      where("userId", "==", user.uid),
-      where("createdAt", ">=", Timestamp.fromDate(startOfMonth))
+      where("userId", "==", user.uid)
     );
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setMonthlyJournalCount(snapshot.size);
+        const totalCount = snapshot.size;
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        let monthly = 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dateSet = new Set<number>();
+        snapshot.docs.forEach((d) => {
+          const raw = d.data().createdAt;
+          let date: Date;
+          if (raw && typeof raw === "object" && "toDate" in raw) {
+            date = (raw as { toDate: () => Date }).toDate();
+          } else if (typeof raw === "string") {
+            date = new Date(raw);
+          } else {
+            return;
+          }
+          if (date >= startOfMonth) monthly++;
+          const day = new Date(date);
+          day.setHours(0, 0, 0, 0);
+          dateSet.add(day.getTime());
+        });
+        let streak = 0;
+        const cursor = new Date(today);
+        while (dateSet.has(cursor.getTime())) {
+          streak++;
+          cursor.setDate(cursor.getDate() - 1);
+        }
+        setStats((prev) => ({ ...prev, totalCount, streakDays: streak }));
+        setMonthlyJournalCount(monthly);
       },
-      (err) => {
-        // permission-denied などでルール未反映時は 0 件表示にしてコンソールエラーを防ぐ
+      () => {
         setMonthlyJournalCount(0);
       }
     );

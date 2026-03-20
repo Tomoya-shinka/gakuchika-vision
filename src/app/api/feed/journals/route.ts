@@ -54,7 +54,7 @@ function calcUniversityDayAdmin(enrollment: unknown, createdAt: string): number 
 }
 
 function toIso(v: unknown): string {
-  if (v == null) return new Date().toISOString();
+  if (v == null) return "1970-01-01T00:00:00.000Z";
   if (typeof v === "string") return v;
   if (typeof v === "number") return new Date(v).toISOString();
   if (v && typeof v === "object" && "toDate" in v && typeof (v as { toDate: () => Date }).toDate === "function") {
@@ -85,17 +85,10 @@ export async function GET() {
     const col = db.collection("journals");
 
     let snapPublic: admin.firestore.QuerySnapshot;
-    let snapVisibility: admin.firestore.QuerySnapshot;
     try {
-      [snapPublic, snapVisibility] = await Promise.all([
-        col.where("isPublic", "==", true).orderBy("createdAt", "desc").limit(50).get(),
-        col.where("visibility", "==", "public").orderBy("createdAt", "desc").limit(50).get(),
-      ]);
+      snapPublic = await col.where("isPublic", "==", true).orderBy("createdAt", "desc").limit(50).get();
     } catch {
-      [snapPublic, snapVisibility] = await Promise.all([
-        col.where("isPublic", "==", true).limit(200).get(),
-        col.where("visibility", "==", "public").limit(200).get(),
-      ]);
+      snapPublic = await col.where("isPublic", "==", true).limit(200).get();
     }
 
     const seen = new Set<string>();
@@ -103,8 +96,10 @@ export async function GET() {
 
     const push = (id: string, data: Record<string, unknown>) => {
       if (seen.has(id)) return;
+      // isPublic を優先。非公開に切り替えた記録が visibility の不一致で表示されないようにする
+      if (data.isPublic !== true) return;
       seen.add(id);
-      const isPublic = data.isPublic === true || String(data.visibility ?? "") === "public";
+      const isPublic = true;
       const rawLikes = data.likes;
       const likes = Array.isArray(rawLikes) ? (rawLikes as string[]).filter((x) => typeof x === "string") : [];
       const userId = String(data.userId ?? "");
@@ -124,7 +119,6 @@ export async function GET() {
     };
 
     snapPublic.docs.forEach((d) => push(d.id, d.data()));
-    snapVisibility.docs.forEach((d) => push(d.id, d.data()));
 
     rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const items = rows.slice(0, 50);

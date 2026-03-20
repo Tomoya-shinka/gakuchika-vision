@@ -21,7 +21,7 @@ import {
   getPreview,
   type JournalEntry,
 } from "@/lib/journal";
-import { ArrowLeft, BookOpen, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, MoreVertical, Pencil, Trash2, Globe, Lock } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -33,6 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { calculateUnivDay } from "@/lib/university-life";
@@ -53,6 +60,7 @@ export default function MyPageRecords() {
   const [loading, setLoading] = useState(true);
   const [enrollmentDate, setEnrollmentDate] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [visibilityTargetJournal, setVisibilityTargetJournal] = useState<FirestoreJournal | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -130,8 +138,18 @@ export default function MyPageRecords() {
     return () => { cancelled = true; };
   }, [user?.uid, loadFirestoreJournals]);
 
-  const handleToggleVisibility = async (journal: FirestoreJournal) => {
-    if (togglingId) return;
+  const handleVisibilityClick = (journal: FirestoreJournal) => {
+    setVisibilityTargetJournal(journal);
+  };
+
+  const handleVisibilityCancel = () => {
+    setVisibilityTargetJournal(null);
+  };
+
+  const handleVisibilityConfirm = async () => {
+    const journal = visibilityTargetJournal;
+    if (!journal || togglingId) return;
+    setVisibilityTargetJournal(null);
     const nextPublic = !journal.isPublic;
     setTogglingId(journal.id);
     const prev = [...firestoreEntries];
@@ -142,7 +160,10 @@ export default function MyPageRecords() {
     );
     try {
       const db = getDb();
-      await updateDoc(doc(db, "journals", journal.id), { isPublic: nextPublic });
+      await updateDoc(doc(db, "journals", journal.id), {
+        isPublic: nextPublic,
+        visibility: nextPublic ? "public" : "private",
+      });
       toast.success(nextPublic ? "公開しました" : "非公開にしました");
     } catch (e) {
       console.error("[mypage/records] failed to toggle visibility:", e);
@@ -244,8 +265,6 @@ export default function MyPageRecords() {
                 {entries.map((entry) => {
                   const preview = getPreview(entry.content, 60);
                   const badgeLabel = entry.isPublic ? "公開" : "非公開";
-                  const badgeEmoji = entry.isPublic ? "🌏" : "🔒";
-                  const isToggling = togglingId === entry.id;
                   const univDay =
                     enrollmentDate != null
                       ? calculateUnivDay(new Date(entry.createdAt), enrollmentDate)
@@ -277,41 +296,68 @@ export default function MyPageRecords() {
                             </p>
                           </div>
                         </Link>
-                        <div className="flex shrink-0 items-center gap-1 border-l border-border pr-2 sm:gap-2 sm:pr-3">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleToggleVisibility(entry);
-                            }}
-                            disabled={isToggling}
+                        <div className="flex w-[120px] shrink-0 items-center justify-between gap-1 border-l border-border px-3">
+                          {/* ステータスバッジ（表示のみ） */}
+                          <span
                             className={cn(
-                              "inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50",
+                              "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium sm:text-xs",
                               entry.isPublic
-                                ? "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                                : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                                ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
                             )}
-                            aria-label={entry.isPublic ? "非公開に切り替え" : "公開に切り替え"}
-                            title={entry.isPublic ? "非公開にする" : "公開する"}
+                            aria-label={`ステータス: ${badgeLabel}`}
                           >
-                            <span className="px-2 py-1 text-[10px] font-medium sm:text-xs">
-                              <span className="mr-1" aria-hidden>{badgeEmoji}</span>
-                              {isToggling ? "…" : badgeLabel}
-                            </span>
-                          </button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleDeleteClick(entry.id);
-                            }}
-                            aria-label="削除"
-                          >
-                            <Trash2 className="size-5" />
-                          </Button>
+                            {entry.isPublic
+                              ? <Globe className="size-3" aria-hidden />
+                              : <Lock className="size-3" aria-hidden />}
+                            {badgeLabel}
+                          </span>
+
+                          {/* ⋮ メニュー */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 text-muted-foreground"
+                                onClick={(e) => e.preventDefault()}
+                                aria-label="メニュー"
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/journal/${entry.id}`}>
+                                  <Pencil className="mr-2 size-3.5" />
+                                  編集
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleVisibilityClick(entry);
+                                }}
+                              >
+                                {entry.isPublic
+                                  ? <Lock className="mr-2 size-3.5" />
+                                  : <Globe className="mr-2 size-3.5" />}
+                                {entry.isPublic ? "非公開に変更する" : "公開に変更する"}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleDeleteClick(entry.id);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 size-3.5" />
+                                削除
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </li>
@@ -386,6 +432,27 @@ export default function MyPageRecords() {
           </section>
         </div>
       </main>
+
+      <AlertDialog open={!!visibilityTargetJournal} onOpenChange={(open) => !open && handleVisibilityCancel()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {visibilityTargetJournal?.isPublic ? "非公開にしますか？" : "公開にしますか？"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {visibilityTargetJournal?.isPublic
+                ? "非公開にすると、この記録は他の人には表示されなくなります。"
+                : "公開すると、この記録が他の人にも表示されるようになります。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleVisibilityCancel}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleVisibilityConfirm}>
+              {visibilityTargetJournal?.isPublic ? "非公開にする" : "公開する"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => !open && handleDeleteCancel()}>
         <AlertDialogContent>

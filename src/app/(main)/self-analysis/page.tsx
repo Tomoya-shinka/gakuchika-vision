@@ -16,7 +16,20 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { Info, Plus, MessageCircle } from "lucide-react";
+import { Info, Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   loadSelfAnalysisItems,
   saveSelfAnalysisItems,
@@ -105,6 +118,12 @@ export default function SelfAnalysisPage() {
 
   const handleDelete = (id: string) => {
     const next = items.filter((i) => i.id !== id);
+    setItems(next);
+    saveSelfAnalysisItems(next);
+  };
+
+  const handleEdit = (id: string, newText: string) => {
+    const next = items.map((i) => i.id === id ? { ...i, text: newText } : i);
     setItems(next);
     saveSelfAnalysisItems(next);
   };
@@ -230,16 +249,29 @@ export default function SelfAnalysisPage() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      {sectionItems.map((item) => (
-                        <ItemCard
-                          key={item.id}
-                          item={item}
-                          accent={section.accent}
-                          bgAccent={section.bgAccent}
-                          onDelete={() => handleDelete(item.id)}
-                        />
-                      ))}
+                    <div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {sectionItems.slice(0, 4).map((item) => (
+                          <ItemCard
+                            key={item.id}
+                            item={item}
+                            accent={section.accent}
+                            bgAccent={section.bgAccent}
+                            borderAccent={section.borderAccent}
+                            onDelete={() => handleDelete(item.id)}
+                            onEdit={(newText) => handleEdit(item.id, newText)}
+                          />
+                        ))}
+                      </div>
+                      {sectionItems.length > 4 && (
+                        <Link
+                          href={`/self-analysis/${section.id}`}
+                          className={`mt-3 inline-flex items-center gap-0.5 text-xs font-medium ${section.accent} hover:underline`}
+                        >
+                          もっと見る（{sectionItems.length - 4}件）
+                          <ChevronRight className="size-3" />
+                        </Link>
+                      )}
                     </div>
                   )}
                   {/* インライン追加フォーム */}
@@ -291,14 +323,21 @@ function ItemCard({
   item,
   accent,
   bgAccent,
+  borderAccent,
   onDelete,
+  onEdit,
 }: {
   item: SelfAnalysisItem;
   accent: string;
   bgAccent: string;
+  borderAccent: string;
   onDelete: () => void;
+  onEdit: (newText: string) => void;
 }) {
-  const [showDel, setShowDel] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(item.text);
+
   const date = new Date(item.createdAt);
   const dateStr =
     date.toDateString() === new Date().toDateString()
@@ -309,26 +348,115 @@ function ItemCard({
           year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
         });
 
+  const handleSaveEdit = () => {
+    if (editText.trim()) {
+      onEdit(editText.trim());
+    }
+    setEditing(false);
+    setModalOpen(false);
+  };
+
   return (
-    <div
-      className={`group relative rounded-lg border ${bgAccent} p-3 shadow-sm transition-colors`}
-      onMouseEnter={() => setShowDel(true)}
-      onMouseLeave={() => setShowDel(false)}
-    >
-      <p className="text-sm text-slate-800 dark:text-slate-200 line-clamp-3">
-        {item.text}
-      </p>
-      <p className={`mt-2 text-xs ${accent}`}>{dateStr}</p>
-      {showDel && (
-        <button
-          type="button"
-          onClick={onDelete}
-          className="absolute top-1.5 right-1.5 rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-          aria-label="削除"
-        >
-          ×
-        </button>
-      )}
-    </div>
+    <>
+      {/* カード */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => { setEditing(false); setEditText(item.text); setModalOpen(true); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setEditing(false); setEditText(item.text); setModalOpen(true); } }}
+        className={`group flex aspect-square cursor-pointer flex-col overflow-hidden rounded-xl border ${borderAccent} ${bgAccent} shadow-sm transition-colors hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      >
+        {/* 上部余白バー：⋮ メニューをここに配置 */}
+        <div className="flex h-7 shrink-0 items-center justify-end px-1.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className="flex size-6 items-center justify-center rounded-full text-slate-400 opacity-0 transition-opacity hover:bg-slate-200/80 hover:text-slate-700 group-hover:opacity-100 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                aria-label="メニュー"
+              >
+                <MoreVertical className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-28">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditText(item.text);
+                  setEditing(true);
+                  setModalOpen(true);
+                }}
+              >
+                <Pencil className="mr-2 size-3.5" />
+                編集
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 size-3.5" />
+                削除
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* テキストエリア */}
+        <div className="flex flex-1 flex-col overflow-hidden px-2.5 pb-2.5">
+          <p className="line-clamp-6 overflow-hidden text-sm leading-snug text-slate-800 dark:text-slate-200">
+            {item.text}
+          </p>
+          <p className={`mt-auto pt-1 text-[10px] ${accent}`}>{dateStr}</p>
+        </div>
+      </div>
+
+      {/* 全文モーダル */}
+      <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) setEditing(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className={`text-sm font-medium ${accent}`}>{dateStr}</DialogTitle>
+          </DialogHeader>
+          {editing ? (
+            <div className="flex flex-col gap-3">
+              <Textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                className="min-h-[120px] resize-none text-sm"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>キャンセル</Button>
+                <Button size="sm" onClick={handleSaveEdit} disabled={!editText.trim()}>保存</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-200">{item.text}</p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-xs"
+                  onClick={() => { setEditText(item.text); setEditing(true); }}
+                >
+                  <Pencil className="size-3.5" />
+                  編集
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-xs text-destructive hover:text-destructive"
+                  onClick={() => { setModalOpen(false); onDelete(); }}
+                >
+                  <Trash2 className="size-3.5" />
+                  削除
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
