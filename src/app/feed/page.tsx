@@ -42,12 +42,12 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   Heart,
   MessageCircle,
-  Share2,
   RotateCcw,
   MoreHorizontal,
   Trash2,
   Send,
 } from "lucide-react";
+import { useCommentNotifications } from "@/hooks/useCommentNotifications";
 
 type FeedJournal = {
   id: string;
@@ -137,6 +137,7 @@ function buildSubtitle(p: AuthorProfile | null): string {
 
 export default function FeedPage() {
   const { user } = useAuth();
+  const { markAllRead } = useCommentNotifications();
   const [items, setItems] = useState<FeedJournal[]>([]);
   const [authors, setAuthors] = useState<Record<string, AuthorProfile | null>>(
     {}
@@ -293,6 +294,22 @@ export default function FeedPage() {
         const list = prev[journalId] ?? [];
         return { ...prev, [journalId]: [added, ...list] };
       });
+      // 他のユーザーの投稿へのコメントは通知を書き込む
+      const journalItem = items.find((i) => i.id === journalId);
+      if (journalItem && journalItem.userId !== user.uid) {
+        try {
+          await addDoc(collection(db, "notifications"), {
+            toUserId: journalItem.userId,
+            fromUserId: user.uid,
+            journalId,
+            type: "comment",
+            read: false,
+            createdAt: Timestamp.now(),
+          });
+        } catch {
+          // 通知書き込み失敗は非クリティカル
+        }
+      }
     } catch (e) {
       console.error("[feed] failed to post comment:", e);
       setCommentInputs((prev) => ({ ...prev, [journalId]: text }));
@@ -432,6 +449,11 @@ export default function FeedPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // フィードを開いたら通知を既読化
+  useEffect(() => {
+    markAllRead();
+  }, [markAllRead]);
 
   useEffect(() => {
     if (expandedCommentId && !comments[expandedCommentId]) {
@@ -707,14 +729,6 @@ export default function FeedPage() {
                             ? comments[item.id].length
                             : (item.commentCount ?? 0)}
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="group inline-flex items-center gap-1 rounded-full px-1 py-1 hover:text-emerald-500"
-                        aria-label="シェア（準備中）"
-                      >
-                        <Share2 className="size-4 group-hover:fill-emerald-500/20" aria-hidden />
-                        <span className="hidden text-[11px] sm:inline">0</span>
                       </button>
                     </div>
 

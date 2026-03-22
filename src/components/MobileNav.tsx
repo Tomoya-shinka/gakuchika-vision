@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, BookOpen, CircleUser, Sparkles, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCommentNotifications } from "@/hooks/useCommentNotifications";
 
 const navItems = [
   {
@@ -35,6 +36,7 @@ const navItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { hasUnread } = useCommentNotifications();
 
   return (
     <nav
@@ -46,6 +48,7 @@ export function MobileNav() {
           pathname === item.url ||
           (item.url !== "/" && pathname.startsWith(item.url));
         const Icon = item.icon;
+        const showBadge = item.url === "/feed" && hasUnread;
 
         return (
           <Link
@@ -59,7 +62,12 @@ export function MobileNav() {
             )}
             aria-current={isActive ? "page" : undefined}
           >
-            <Icon className="size-5 shrink-0" aria-hidden />
+            <span className="relative">
+              <Icon className="size-5 shrink-0" aria-hidden />
+              {showBadge && (
+                <span className="absolute -right-1 -top-1 size-2 rounded-full bg-red-500" />
+              )}
+            </span>
             <span className="text-[10px] font-medium leading-tight">
               {item.title}
             </span>

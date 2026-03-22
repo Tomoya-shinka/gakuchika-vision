@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
+import { useCommentNotifications } from "@/hooks/useCommentNotifications";
 
 const navItems = [
   {
@@ -71,6 +72,7 @@ export function AppSidebar() {
   const { state, toggleSidebar, isMobile } = useSidebar();
   const isExpanded = state === "expanded";
   const { user, loading, signOut } = useAuth();
+  const { hasUnread } = useCommentNotifications();
 
   return (
     <Sidebar collapsible="icon">
@@ -127,23 +129,31 @@ export function AppSidebar() {
           <SidebarGroupLabel>メニュー</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={
-                      pathname === item.url ||
-                      (item.url === "/mypage" && pathname.startsWith("/mypage"))
-                    }
-                    tooltip={item.title}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navItems.map((item) => {
+                const showBadge = item.url === "/feed" && hasUnread;
+                return (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={
+                        pathname === item.url ||
+                        (item.url === "/mypage" && pathname.startsWith("/mypage"))
+                      }
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url}>
+                        <span className="relative shrink-0">
+                          <item.icon className="size-4" />
+                          {showBadge && (
+                            <span className="absolute -right-1 -top-1 size-2 rounded-full bg-red-500" />
+                          )}
+                        </span>
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

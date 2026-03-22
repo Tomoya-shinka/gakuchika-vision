@@ -32,6 +32,14 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
+
+    match /notifications/{notifId} {
+      // 受信者本人のみ読み取り・既読更新可
+      allow read, update: if request.auth != null && resource.data.toUserId == request.auth.uid;
+      // 認証済みユーザーが自分のfromUserIdで通知を作成可
+      allow create: if request.auth != null && request.resource.data.fromUserId == request.auth.uid;
+      allow delete: if false;
+    }
   }
 }
 
