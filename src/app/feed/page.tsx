@@ -130,7 +130,7 @@ async function fetchAuthorProfile(uid: string): Promise<AuthorProfile | null> {
 
 function buildSubtitle(p: AuthorProfile | null): string {
   const uni = (p?.university ?? "").trim();
-  const grade = (p?.grade ?? "").trim();
+  const grade = (p?.grade ?? "").trim().replace(/年生$/, "");
   const parts = [uni, grade ? `${grade}年生` : ""].filter(Boolean);
   return parts.join(" ");
 }
