@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   collection,
   doc,
@@ -615,27 +616,51 @@ export default function FeedPage() {
                   <CardHeader className="relative px-6 pb-0 pt-5 sm:pt-6">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                          {initial}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                            <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
-                              {name}
-                            </p>
-                            <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-                              {subtitle || "プロフィール未設定"}
-                            </span>
+                        {/* アバター + 名前 → プロフィールへのリンク（デモモード時は無効） */}
+                        {isDemoMode ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                              {initial}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                                  {name}
+                                </p>
+                                <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                  {subtitle || "プロフィール未設定"}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
-                            <span>{formatDate(item.createdAt)}</span>
-                            {typeof item.universityDay === "number" && (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                                大学生活 {item.universityDay}日目
-                              </span>
-                            )}
-                          </p>
-                        </div>
+                        ) : (
+                          <Link
+                            href={`/profile/${item.userId}`}
+                            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                          >
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                              {initial}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                                  {name}
+                                </p>
+                                <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                  {subtitle || "プロフィール未設定"}
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        )}
+                        <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+                          <span>{formatDate(item.createdAt)}</span>
+                          {typeof item.universityDay === "number" && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                              大学生活 {item.universityDay}日目
+                            </span>
+                          )}
+                        </p>
                       </div>
                       {user?.uid && item.userId === user.uid && (
                         <DropdownMenu>

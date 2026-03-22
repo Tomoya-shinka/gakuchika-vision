@@ -40,6 +40,33 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.fromUserId == request.auth.uid;
       allow delete: if false;
     }
+
+    match /follows/{followId} {
+      // 認証済みユーザーはフォロー状態を読み取り可
+      allow read: if request.auth != null;
+      // 自分がfollowerIdのフォローのみ作成可
+      allow create: if request.auth != null &&
+        request.resource.data.followerId == request.auth.uid;
+      // 自分がfollowerIdのフォローのみ削除可
+      allow delete: if request.auth != null &&
+        resource.data.followerId == request.auth.uid;
+    }
+
+    match /conversations/{convId} {
+      // 参加者のみ読み取り・更新可
+      allow read, update: if request.auth != null &&
+        request.auth.uid in resource.data.participants;
+      // 自分が参加者として含まれる会話を作成可
+      allow create: if request.auth != null &&
+        request.auth.uid in request.resource.data.participants;
+    }
+
+    match /conversations/{convId}/messages/{msgId} {
+      // 親会話の参加者のみ読み取り・作成・更新可
+      allow read, create, update: if request.auth != null &&
+        request.auth.uid in
+          get(/databases/$(database)/documents/conversations/$(convId)).data.participants;
+    }
   }
 }
 
