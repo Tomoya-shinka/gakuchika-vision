@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  MessageCircle,
   LogIn,
   LogOut,
 } from "lucide-react";
@@ -49,14 +50,14 @@ const navItems = [
     icon: BookOpen,
   },
   {
+    title: "フィード",
+    url: "/feed",
+    icon: MessageCircle,
+  },
+  {
     title: "自己分析シート",
     url: "/self-analysis",
     icon: Sparkles,
-  },
-  {
-    title: "フィード",
-    url: "/feed",
-    icon: GraduationCap,
   },
   {
     title: "My Page",

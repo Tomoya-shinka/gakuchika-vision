@@ -37,6 +37,9 @@ import {
   Strikethrough,
   List,
   ListOrdered,
+  Mic,
+  MicOff,
+  MoreHorizontal,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -60,7 +63,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { JournalRichEditor } from "@/components/journal-rich-editor";
 import { StyleSelector } from "@/components/style-selector";
 import type { Editor } from "@tiptap/react";
@@ -68,11 +80,67 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { calculateUnivDay, formatUniversityDayLabel } from "@/lib/university-life";
 
-type JournalTemplate = "free";
+type JournalTemplate = "free" | "star" | "short";
 
 const TEMPLATE_LABELS: Record<JournalTemplate, string> = {
   free: "通常モード（自由記述）",
+  star: "STAR法（就活・エピソード集め用）",
+  short: "短期モード（日々の振り返り用）",
 };
+
+interface StarFields { situation: string; task: string; action: string; result: string; }
+interface ShortFields { today: string; insights: string; tomorrow: string; }
+
+function buildStarHtml(f: StarFields): string {
+  return [
+    f.situation && `<p><strong>【Situation（状況）】</strong></p><p>${f.situation.replace(/\n/g, "<br>")}</p>`,
+    f.task && `<p><strong>【Task（課題）】</strong></p><p>${f.task.replace(/\n/g, "<br>")}</p>`,
+    f.action && `<p><strong>【Action（行動）】</strong></p><p>${f.action.replace(/\n/g, "<br>")}</p>`,
+    f.result && `<p><strong>【Result（結果）】</strong></p><p>${f.result.replace(/\n/g, "<br>")}</p>`,
+  ].filter(Boolean).join("");
+}
+
+function buildShortHtml(f: ShortFields): string {
+  return [
+    f.today && `<p><strong>【今日やったこと】</strong></p><p>${f.today.replace(/\n/g, "<br>")}</p>`,
+    f.insights && `<p><strong>【気づき・学び】</strong></p><p>${f.insights.replace(/\n/g, "<br>")}</p>`,
+    f.tomorrow && `<p><strong>【明日の改善点】</strong></p><p>${f.tomorrow.replace(/\n/g, "<br>")}</p>`,
+  ].filter(Boolean).join("");
+}
+
+function TemplateField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  fieldName,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  fieldName: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</p>
+      <textarea
+        data-field={fieldName}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? "ここに入力してください..."}
+        rows={4}
+        className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-base leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-sky-500"
+      />
+    </div>
+  );
+}
+
+function formatRecordingTime(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 const AI_THEME_QUESTIONS = [
   "今、一番時間を使いたいことは？",
@@ -168,7 +236,19 @@ export default function JournalPage() {
   const { state: sidebarState } = useSidebar();
   const isSidebarOpen = sidebarState === "expanded";
 
-  const [template] = useState<JournalTemplate>("free");
+  const [template, setTemplate] = useState<JournalTemplate>("free");
+  const [pendingTemplate, setPendingTemplate] = useState<JournalTemplate | null>(null);
+  const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
+  // STAR fields
+  const [situation, setSituation] = useState("");
+  const [task, setTask] = useState("");
+  const [action, setAction] = useState("");
+  const [result, setResult] = useState("");
+  // SHORT fields
+  const [today, setToday] = useState("");
+  const [insights, setInsights] = useState("");
+  const [tomorrow, setTomorrow] = useState("");
+
   const [goalsPanelOpen, setGoalsPanelOpen] = useState(false);
   const [goalsData, setGoalsData] = useState<GoalsData | null>(null);
   const [title, setTitle] = useState("");
@@ -177,6 +257,26 @@ export default function JournalPage() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSelfAnalysisPrompt, setShowSelfAnalysisPrompt] = useState(false);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const templateRef = useRef<JournalTemplate>("free");
+  const transcribeTargetRef = useRef<
+    | { type: "tiptap" }
+    | { type: "field"; field: string; cursorStart: number; cursorEnd: number }
+    | { type: "default" }
+  >({ type: "default" });
+
+  useEffect(() => { templateRef.current = template; }, [template]);
+
+  useEffect(() => {
+    if (!isRecording) { setRecordingSeconds(0); return; }
+    const id = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [isRecording]);
 
   const freeEditorRef = useRef<Editor | null>(null);
   const [, setEditorUpdateTick] = useState(0);
@@ -215,12 +315,152 @@ export default function JournalPage() {
     setAiQuestion(getRandomQuestion());
   };
 
+  const hasFreeContent = !freeEditorEmpty || content.trim().length > 0;
+  const hasStarContent = !!(situation || task || action || result);
+  const hasShortContent = !!(today || insights || tomorrow);
+
+  const applyTemplate = (next: JournalTemplate) => {
+    // Clear current template fields
+    if (template === "star") { setSituation(""); setTask(""); setAction(""); setResult(""); }
+    if (template === "short") { setToday(""); setInsights(""); setTomorrow(""); }
+    if (template === "free") {
+      freeEditorRef.current?.commands.setContent("");
+      setFreeEditorEmpty(true);
+      setFreeEditorCharCount(0);
+      setFreeEditorKey((k) => k + 1);
+      setContent("");
+    }
+    setTemplate(next);
+    setPendingTemplate(null);
+  };
+
+  const handleTemplateChange = (next: JournalTemplate) => {
+    if (next === template) return;
+    const hasContent =
+      (template === "free" && hasFreeContent) ||
+      (template === "star" && hasStarContent) ||
+      (template === "short" && hasShortContent);
+    if (hasContent) {
+      setPendingTemplate(next);
+      setShowSwitchConfirm(true);
+    } else {
+      applyTemplate(next);
+    }
+  };
+
+  const handleMicClick = async () => {
+    if (isTranscribing) return;
+
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    // 押下時点のフォーカス位置を記録（onMouseDown で focus 移動を防いでいるため有効）
+    const ae = document.activeElement;
+    if (ae instanceof HTMLTextAreaElement && ae.dataset.field) {
+      transcribeTargetRef.current = {
+        type: "field",
+        field: ae.dataset.field,
+        cursorStart: ae.selectionStart ?? ae.value.length,
+        cursorEnd: ae.selectionEnd ?? ae.value.length,
+      };
+    } else if (ae?.classList.contains("ProseMirror")) {
+      transcribeTargetRef.current = { type: "tiptap" };
+    } else {
+      transcribeTargetRef.current = { type: "default" };
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error("このブラウザは音声録音に対応していません");
+      return;
+    }
+
+    const fieldSetters: Record<string, React.Dispatch<React.SetStateAction<string>>> = {
+      situation: setSituation,
+      task: setTask,
+      action: setAction,
+      result: setResult,
+      today: setToday,
+      insights: setInsights,
+      tomorrow: setTomorrow,
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        audioChunksRef.current = [];
+        setIsTranscribing(true);
+        try {
+          const form = new FormData();
+          form.append("audio", audioBlob, "audio.webm");
+          const res = await fetch("/api/transcribe", { method: "POST", body: form });
+          if (!res.ok) throw new Error("transcription failed");
+          const { text } = (await res.json()) as { text: string };
+          if (!text) return;
+
+          const target = transcribeTargetRef.current;
+          const tmpl = templateRef.current;
+
+          if (target.type === "tiptap") {
+            freeEditorRef.current?.chain().focus().insertContent(text).run();
+          } else if (target.type === "field") {
+            const setter = fieldSetters[target.field];
+            if (setter) {
+              const { cursorStart, cursorEnd } = target;
+              setter((prev) => prev.slice(0, cursorStart) + text + prev.slice(cursorEnd));
+            }
+          } else {
+            // デフォルト: カーソル位置なし
+            if (tmpl === "free") {
+              freeEditorRef.current?.chain().focus().insertContent(text).run();
+            } else if (tmpl === "star") {
+              setSituation((prev) => prev ? prev + "\n" + text : text);
+            } else if (tmpl === "short") {
+              setToday((prev) => prev ? prev + "\n" + text : text);
+            }
+          }
+        } catch {
+          toast.error("文字起こしに失敗しました");
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch {
+      toast.error("マイクへのアクセスが拒否されました");
+    }
+  };
+
   const hasTitleOrContent =
-    title.trim().length > 0 || !freeEditorEmpty || content.trim().length > 0;
+    title.trim().length > 0 ||
+    (template === "free" && hasFreeContent) ||
+    (template === "star" && hasStarContent) ||
+    (template === "short" && hasShortContent);
 
   const performSave = async (visibility: JournalVisibility) => {
-    const html = (freeEditorRef.current?.getHTML() ?? "").trim();
-    const trimmed = html || content.trim();
+    let trimmed = "";
+    if (template === "free") {
+      const html = (freeEditorRef.current?.getHTML() ?? "").trim();
+      trimmed = html || content.trim();
+    } else if (template === "star") {
+      trimmed = buildStarHtml({ situation, task, action, result });
+    } else if (template === "short") {
+      trimmed = buildShortHtml({ today, insights, tomorrow });
+    }
     if (!trimmed || isSaving) return;
 
     setIsSaving(true);
@@ -265,6 +505,8 @@ export default function JournalPage() {
       setFreeEditorEmpty(true);
       setFreeEditorCharCount(0);
       setFreeEditorKey((k) => k + 1);
+      setSituation(""); setTask(""); setAction(""); setResult("");
+      setToday(""); setInsights(""); setTomorrow("");
       setAiQuestion(null);
       setIsSaveModalOpen(false);
 
@@ -287,19 +529,58 @@ export default function JournalPage() {
   };
 
   const handleSaveClick = () => {
-    const html = (freeEditorRef.current?.getHTML() ?? "").trim();
-    const trimmed = html || content.trim();
-    if (!trimmed) return;
+    if (!hasTitleOrContent) return;
     setIsSaveModalOpen(true);
   };
 
-  const effectiveTotalChars = freeEditorCharCount || content.length;
+  const effectiveTotalChars =
+    template === "free"
+      ? freeEditorCharCount || content.length
+      : template === "star"
+      ? (situation + task + action + result).length
+      : (today + insights + tomorrow).length;
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[#fafafa] dark:bg-slate-950/50">
+      {/* 録音中 - 画面周囲の赤いビネット */}
+      {isRecording && (
+        <div
+          className="pointer-events-none fixed inset-0 z-[100]"
+          style={{ boxShadow: "inset 0 0 80px 24px rgba(239,68,68,0.15)" }}
+          aria-hidden
+        />
+      )}
+
+      {/* 録音中 / 文字起こし中 フローティングピル */}
+      {(isRecording || isTranscribing) && (
+        <div className="fixed bottom-20 left-1/2 z-[101] -translate-x-1/2">
+          <button
+            type="button"
+            onClick={isRecording ? handleMicClick : undefined}
+            className={cn(
+              "flex items-center gap-2.5 rounded-full px-5 py-3 text-sm font-medium shadow-2xl transition-all",
+              isRecording
+                ? "cursor-pointer bg-red-500 text-white hover:bg-red-600 active:scale-95"
+                : "cursor-default border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            )}
+          >
+            {isRecording ? (
+              <>
+                <span className="size-2.5 animate-pulse rounded-full bg-white" aria-hidden />
+                録音中 {formatRecordingTime(recordingSeconds)} · タップして停止
+              </>
+            ) : (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                文字起こし中...
+              </>
+            )}
+          </button>
+        </div>
+      )}
       <header className="sticky top-0 z-50 flex h-14 w-full shrink-0 flex-nowrap items-center justify-between overflow-visible border-b border-slate-200/60 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex shrink-0 flex-nowrap items-center gap-2">
-          <h1 className="hidden text-sm font-medium text-slate-600 dark:text-slate-400 sm:block">
+          <h1 className="text-sm font-medium text-slate-600 dark:text-slate-400">
             ジャーナル
           </h1>
           <DropdownMenu>
@@ -307,7 +588,7 @@ export default function JournalPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="shrink-0 gap-2 whitespace-nowrap text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                className="hidden shrink-0 gap-2 whitespace-nowrap text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:flex"
               >
                 <FileText className="size-4" aria-hidden />
                 テンプレート
@@ -315,12 +596,21 @@ export default function JournalPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem disabled>{TEMPLATE_LABELS.free}</DropdownMenuItem>
+              {(["free", "star", "short"] as JournalTemplate[]).map((t) => (
+                <DropdownMenuItem
+                  key={t}
+                  onClick={() => handleTemplateChange(t)}
+                  className={cn(template === t && "font-semibold text-primary")}
+                >
+                  {template === t && <span className="mr-1">✓</span>}
+                  {TEMPLATE_LABELS[t]}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-center overflow-visible px-2">
+        <div className="hidden min-w-0 flex-1 flex-nowrap items-center justify-center overflow-visible px-2 sm:flex">
           <div className="flex items-center gap-2">
             <StyleSelector editor={freeEditorRef.current} variant="toolbar" />
 
@@ -422,16 +712,112 @@ export default function JournalPage() {
             >
               <ListOrdered className="size-4" aria-hidden />
             </Button>
+
+            <div className="mx-1 h-5 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden />
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "size-8 shrink-0",
+                isRecording
+                  ? "animate-pulse text-red-500 hover:text-red-600"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              )}
+              disabled={isTranscribing}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleMicClick}
+              title={isRecording ? "録音を停止" : "音声入力"}
+            >
+              {isTranscribing ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : isRecording ? (
+                <MicOff className="size-4" aria-hidden />
+              ) : (
+                <Mic className="size-4" aria-hidden />
+              )}
+            </Button>
           </div>
         </div>
 
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2 whitespace-nowrap border-l border-slate-200/60 pl-3 dark:border-slate-700">
+          {/* マイクボタン - モバイルのみ */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "size-8 shrink-0 sm:hidden",
+              isRecording
+                ? "animate-pulse text-red-500 hover:text-red-600"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            )}
+            disabled={isTranscribing}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleMicClick}
+            title={isRecording ? "録音を停止" : "音声入力"}
+          >
+            {isTranscribing ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : isRecording ? (
+              <MicOff className="size-4" aria-hidden />
+            ) : (
+              <Mic className="size-4" aria-hidden />
+            )}
+          </Button>
+
+          {/* その他メニュー - モバイルのみ */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:hidden"
+                title="メニュー"
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <FileText className="mr-2 size-4" aria-hidden />
+                  テンプレート
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {(["free", "star", "short"] as JournalTemplate[]).map((t) => (
+                    <DropdownMenuItem
+                      key={t}
+                      onClick={() => handleTemplateChange(t)}
+                      className={cn(template === t && "font-semibold text-primary")}
+                    >
+                      {template === t && <span className="mr-1">✓</span>}
+                      {TEMPLATE_LABELS[t]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setGoalsPanelOpen((prev) => !prev)}
+              >
+                <Target className="mr-2 size-4" aria-hidden />
+                目標を表示
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAiTheme}>
+                <Sparkles className="mr-2 size-4" aria-hidden />
+                AI相談
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setGoalsPanelOpen((prev) => !prev)}
             className={cn(
-              "shrink-0 whitespace-nowrap gap-2",
+              "hidden shrink-0 whitespace-nowrap gap-2 sm:flex",
               goalsPanelOpen
                 ? "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -444,7 +830,7 @@ export default function JournalPage() {
             variant="ghost"
             size="sm"
             onClick={handleAiTheme}
-            className="shrink-0 whitespace-nowrap gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="hidden shrink-0 whitespace-nowrap gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 sm:flex"
           >
             <Sparkles className="size-4 shrink-0" aria-hidden />
             AI相談
@@ -534,8 +920,25 @@ export default function JournalPage() {
                   aria-label="タイトル"
                 />
 
+                {template === "star" && (
+                  <div className="mt-6 space-y-6">
+                    <TemplateField fieldName="situation" label="Situation（状況）" placeholder="そのときどんな状況でしたか？" value={situation} onChange={setSituation} />
+                    <TemplateField fieldName="task" label="Task（課題）" placeholder="あなたが果たすべき役割・課題は何でしたか？" value={task} onChange={setTask} />
+                    <TemplateField fieldName="action" label="Action（行動）" placeholder="課題に対して具体的にどんな行動をとりましたか？" value={action} onChange={setAction} />
+                    <TemplateField fieldName="result" label="Result（結果）" placeholder="その結果どうなりましたか？学んだことは？" value={result} onChange={setResult} />
+                  </div>
+                )}
+
+                {template === "short" && (
+                  <div className="mt-6 space-y-6">
+                    <TemplateField fieldName="today" label="今日やったこと" placeholder="今日取り組んだことを書いてみよう" value={today} onChange={setToday} />
+                    <TemplateField fieldName="insights" label="気づき・学び" placeholder="今日気づいたこと、学んだことは？" value={insights} onChange={setInsights} />
+                    <TemplateField fieldName="tomorrow" label="明日の改善点" placeholder="明日やってみたいことや改善したいことは？" value={tomorrow} onChange={setTomorrow} />
+                  </div>
+                )}
+
                 <div
-                  className="mt-4 min-h-[420px] cursor-text"
+                  className={cn("mt-4 min-h-[420px] cursor-text", template !== "free" && "hidden")}
                   onClick={(e) => {
                     if (!(e.target as HTMLElement).closest(".ProseMirror")) {
                       freeEditorRef.current?.commands.focus("end");
@@ -708,6 +1111,28 @@ export default function JournalPage() {
               }}
             >
               自己分析シートを開く
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* テンプレート切り替え確認ダイアログ */}
+      <AlertDialog open={showSwitchConfirm} onOpenChange={setShowSwitchConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>テンプレートを切り替えますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              現在入力中の内容は失われます。「{pendingTemplate ? TEMPLATE_LABELS[pendingTemplate] : ""}」に切り替えますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowSwitchConfirm(false); setPendingTemplate(null); }}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (pendingTemplate) applyTemplate(pendingTemplate); setShowSwitchConfirm(false); }}
+            >
+              切り替える
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

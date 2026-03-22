@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, CircleUser, Sparkles } from "lucide-react";
+import { Home, BookOpen, CircleUser, Sparkles, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -15,6 +15,11 @@ const navItems = [
     title: "ジャーナル",
     url: "/journal",
     icon: BookOpen,
+  },
+  {
+    title: "フィード",
+    url: "/feed",
+    icon: MessageCircle,
   },
   {
     title: "自己分析",
