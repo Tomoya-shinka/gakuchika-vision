@@ -278,6 +278,19 @@ export default function JournalPage() {
     return () => clearInterval(id);
   }, [isRecording]);
 
+  useEffect(() => {
+    if (!isRecording) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        mediaRecorderRef.current?.stop();
+        setIsRecording(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isRecording]);
+
   const freeEditorRef = useRef<Editor | null>(null);
   const [, setEditorUpdateTick] = useState(0);
   const titleInputRef = useRef<HTMLInputElement | null>(null);

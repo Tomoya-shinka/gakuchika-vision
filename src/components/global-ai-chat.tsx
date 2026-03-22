@@ -1,0 +1,313 @@
+"use client";
+
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import {
+  X,
+  Send,
+  Loader2,
+  Bot,
+  User,
+  MessageSquareDot,
+  ChevronDown,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { loadEntries, stripHtml } from "@/lib/journal";
+import { loadSelfAnalysisItems } from "@/lib/self-analysis";
+
+const QUICK_ACTIONS = [
+  "今週のジャーナルをまとめて",
+  "先月の振り返りを作って",
+  "私の強みや成功体験を教えて",
+  "ガクチカのネタになりそうな経験は？",
+  "目標を見つける手伝いをして",
+];
+
+type ContextData = {
+  journals: { title?: string; contentPlain: string; createdAt: string }[];
+  selfAnalysis: { sectionId: string; text: string }[];
+};
+
+function buildContext(): ContextData {
+  const journals = loadEntries()
+    .slice(0, 30)
+    .map((j) => ({
+      title: j.title,
+      contentPlain: stripHtml(j.content).slice(0, 600),
+      createdAt: j.createdAt,
+    }));
+  const selfAnalysis = loadSelfAnalysisItems().map((s) => ({
+    sectionId: s.sectionId,
+    text: s.text,
+  }));
+  return { journals, selfAnalysis };
+}
+
+export function GlobalAiChat() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [contextData, setContextData] = useState<ContextData>({
+    journals: [],
+    selfAnalysis: [],
+  });
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load context on mount (client-side only)
+  useEffect(() => {
+    setContextData(buildContext());
+  }, []);
+
+  // Refresh context each time panel opens
+  useEffect(() => {
+    if (isOpen) {
+      setContextData(buildContext());
+    }
+  }, [isOpen]);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/ai-chat",
+        body: { context: contextData },
+      }),
+    [contextData]
+  );
+
+  const { messages, sendMessage, status, setMessages } = useChat({ transport });
+
+  const isLoading = status === "submitted" || status === "streaming";
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [isOpen]);
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || isLoading) return;
+    sendMessage({ text: trimmed });
+    setInput("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleQuickAction = (text: string) => {
+    sendMessage({ text });
+  };
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className={cn(
+          "fixed bottom-20 right-4 z-[200] flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 md:bottom-6 md:right-6",
+          isOpen && "pointer-events-none opacity-0"
+        )}
+        aria-label="AIアシスタントを開く"
+      >
+        <MessageSquareDot className="size-6" />
+      </button>
+
+      {/* Backdrop (mobile) */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-[199] bg-black/30 md:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Chat panel */}
+      <div
+        className={cn(
+          "fixed z-[200] flex flex-col overflow-hidden bg-background shadow-2xl transition-all duration-300",
+          "bottom-0 left-0 right-0 rounded-t-2xl border-t border-border",
+          "md:bottom-6 md:left-auto md:right-6 md:w-[420px] md:rounded-2xl md:border",
+          isOpen
+            ? "h-[85svh] md:h-[600px]"
+            : "h-0 md:h-0 pointer-events-none opacity-0"
+        )}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <MessageSquareDot className="size-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">AIアシスタント</p>
+              <p className="text-xs text-muted-foreground">
+                ガクチカ・就活をサポート
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground"
+                onClick={() => setMessages([])}
+              >
+                クリア
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => setIsOpen(false)}
+              aria-label="閉じる"
+            >
+              <ChevronDown className="size-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+          {messages.length === 0 && (
+            <div className="space-y-4">
+              {/* Welcome message */}
+              <div className="flex gap-3">
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Bot className="size-3.5" />
+                </div>
+                <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-3 text-sm leading-relaxed">
+                  こんにちは！ガクチカビジョンのAIアシスタントです。ジャーナルや自己分析のデータをもとに、あなたの就活をサポートします。何でもお気軽にどうぞ！
+                </div>
+              </div>
+
+              {/* Quick action chips */}
+              <div className="pl-10">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  よく使われる質問：
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_ACTIONS.map((action) => (
+                    <button
+                      key={action}
+                      onClick={() => handleQuickAction(action)}
+                      className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary/10 active:bg-primary/15"
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {messages.map((m) => {
+            const isUser = m.role === "user";
+            const text =
+              m.parts
+                ?.filter(
+                  (p): p is { type: "text"; text: string } => p.type === "text"
+                )
+                .map((p) => p.text)
+                .join("") ??
+              (typeof m.content === "string" ? m.content : "");
+
+            return (
+              <div
+                key={m.id}
+                className={cn("flex gap-2.5", isUser && "flex-row-reverse")}
+              >
+                <div
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-full",
+                    isUser
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-primary/10 text-primary"
+                  )}
+                >
+                  {isUser ? (
+                    <User className="size-3.5" />
+                  ) : (
+                    <Bot className="size-3.5" />
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    "max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap",
+                    isUser
+                      ? "rounded-tr-sm bg-primary text-primary-foreground"
+                      : "rounded-tl-sm bg-muted text-foreground"
+                  )}
+                >
+                  {text}
+                </div>
+              </div>
+            );
+          })}
+
+          {isLoading && (
+            <div className="flex gap-2.5">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Bot className="size-3.5" />
+              </div>
+              <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="shrink-0 border-t p-3">
+          <div className="flex items-end gap-2">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="メッセージを入力... (Shift+Enterで改行)"
+              className="min-h-[44px] max-h-32 resize-none text-sm"
+              rows={1}
+            />
+            <Button
+              type="button"
+              size="icon"
+              className="shrink-0"
+              disabled={isLoading || !input.trim()}
+              onClick={handleSend}
+              aria-label="送信"
+            >
+              {isLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+            </Button>
+          </div>
+          <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+            AIの回答は参考情報です。重要な判断は自身で確認してください。
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}

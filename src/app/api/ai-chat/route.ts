@@ -1,0 +1,230 @@
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+export const maxDuration = 60;
+
+interface JournalContext {
+  title?: string;
+  contentPlain: string;
+  createdAt: string;
+}
+
+interface SelfAnalysisContext {
+  sectionId: string;
+  text: string;
+}
+
+interface ChatContext {
+  journals?: JournalContext[];
+  selfAnalysis?: SelfAnalysisContext[];
+}
+
+const SECTION_LABELS: Record<string, string> = {
+  "small-wins": "成功体験・小さな達成",
+  fun: "楽しかったこと・夢中になったこと",
+  strength: "得意なこと・強み",
+  dream: "長期ビジョン・将来の夢",
+};
+
+type SummaryPeriod = "week" | "month" | null;
+
+/** ユーザーの最新メッセージから振り返り期間を検出する */
+function detectSummaryPeriod(messages: UIMessage[]): SummaryPeriod {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (!lastUser) return null;
+  const text =
+    lastUser.parts
+      ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("") ??
+    (typeof lastUser.content === "string" ? lastUser.content : "");
+  const lower = text;
+  if (/今週|先週|1週間|一週間|週間|weekly/.test(lower)) return "week";
+  if (/今月|先月|1か月|1ヶ月|一ヶ月|一か月|月間|monthly/.test(lower)) return "month";
+  return null;
+}
+
+/** 期間内のジャーナルを抽出する */
+function filterJournalsByPeriod(
+  journals: JournalContext[],
+  period: SummaryPeriod
+): JournalContext[] {
+  if (!period) return journals;
+  const now = new Date();
+  let from: Date;
+  if (period === "week") {
+    // 先週月曜〜日曜（先週全体）を対象
+    const dayOfWeek = now.getDay(); // 0=日,1=月,...
+    const daysToLastMonday = dayOfWeek === 0 ? 13 : dayOfWeek + 6;
+    from = new Date(now);
+    from.setDate(now.getDate() - daysToLastMonday);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setDate(from.getDate() + 6);
+    to.setHours(23, 59, 59, 999);
+    return journals.filter((j) => {
+      const d = new Date(j.createdAt);
+      return d >= from && d <= to;
+    });
+  } else {
+    // 先月1日〜末日
+    const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstOfLastMonth = new Date(
+      firstOfThisMonth.getFullYear(),
+      firstOfThisMonth.getMonth() - 1,
+      1
+    );
+    const lastOfLastMonth = new Date(firstOfThisMonth.getTime() - 1);
+    return journals.filter((j) => {
+      const d = new Date(j.createdAt);
+      return d >= firstOfLastMonth && d <= lastOfLastMonth;
+    });
+  }
+}
+
+function getPeriodLabel(period: SummaryPeriod): string {
+  if (period === "week") return "先週";
+  if (period === "month") return "先月";
+  return "";
+}
+
+function buildSystemPrompt(
+  context: ChatContext,
+  summaryPeriod: SummaryPeriod,
+  periodJournals: JournalContext[]
+): string {
+  const allJournals = context?.journals ?? [];
+  const selfAnalysis = context?.selfAnalysis ?? [];
+
+  // 振り返りモード: ジャーナルのみ使用
+  if (summaryPeriod) {
+    const label = getPeriodLabel(summaryPeriod);
+    let prompt = `あなたは「ガクチカビジョン」アプリのAIアシスタントです。
+ユーザーが${label}の振り返りを求めています。以下の${label}のジャーナル記録のみを参照して、まとめを作成してください。
+
+`;
+    prompt += `## ${label}のジャーナル記録（${periodJournals.length}件）\n`;
+    periodJournals.forEach((j, i) => {
+      const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
+      const title = j.title ? `「${j.title}」` : "無題";
+      prompt += `\n### ${i + 1}. ${title} (${date})\n${j.contentPlain}\n`;
+    });
+
+    prompt += `
+## まとめの作成指針
+- ${label}全体の流れをわかりやすく整理する
+- 頑張ったこと・気づき・成長をポジティブに伝える
+- ジャーナルに書かれた具体的なエピソードや日付を引用する
+- 「来週/来月につながること」や「気づいた課題」があれば触れる
+- 回答は日本語で、フレンドリーで温かみのある丁寧な口調にする
+- 見出しと箇条書きを活用して読みやすくまとめる
+- 自己分析シートのデータは使わない`;
+    return prompt;
+  }
+
+  // 通常モード: ジャーナル + 自己分析を使用
+  let prompt = `あなたは「ガクチカビジョン」アプリのAIアシスタントです。
+大学生のガクチカ（学生時代に力を入れたこと）の振り返りと就職活動の準備をサポートします。
+
+以下のユーザーデータを参照して、具体的で的確なアドバイスをしてください。
+
+`;
+
+  if (allJournals.length > 0) {
+    prompt += `## ジャーナル記録（直近 ${allJournals.length} 件）\n`;
+    allJournals.forEach((j, i) => {
+      const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
+      const title = j.title ? `「${j.title}」` : "無題";
+      prompt += `\n### ${i + 1}. ${title} (${date})\n${j.contentPlain}\n`;
+    });
+    prompt += "\n";
+  } else {
+    prompt += `## ジャーナル記録\nまだ記録がありません。\n\n`;
+  }
+
+  if (selfAnalysis.length > 0) {
+    prompt += `## 自己分析シート\n`;
+    const grouped: Record<string, string[]> = {};
+    for (const item of selfAnalysis) {
+      if (!grouped[item.sectionId]) grouped[item.sectionId] = [];
+      grouped[item.sectionId].push(item.text);
+    }
+    for (const [sectionId, label] of Object.entries(SECTION_LABELS)) {
+      const items = grouped[sectionId];
+      if (items && items.length > 0) {
+        prompt += `\n### ${label}\n`;
+        items.forEach((t) => (prompt += `- ${t}\n`));
+      }
+    }
+    prompt += "\n";
+  } else {
+    prompt += `## 自己分析シート\nまだ記録がありません。\n\n`;
+  }
+
+  prompt += `## あなたの役割と行動指針
+- ユーザーの目標や方向性を見つける手伝いをする
+- 自己分析シートの内容から強みや成功体験を整理・発見する手伝いをする
+- ガクチカのエピソード候補を提案し、STAR法でまとめる手伝いをする
+- 具体的なデータ（日付・エピソード・感情）を引用しながら回答する
+- 回答は日本語で、フレンドリーで温かみのある丁寧な口調にする
+- 箇条書きや見出しを活用して読みやすくまとめる`;
+
+  return prompt;
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { messages, context } = body as {
+      messages: UIMessage[];
+      context?: ChatContext;
+    };
+
+    if (!process.env.OPENAI_API_KEY) {
+      return Response.json(
+        { error: "OpenAI API key is not configured" },
+        { status: 503 }
+      );
+    }
+
+    const allJournals = context?.journals ?? [];
+
+    // 振り返り期間の検出
+    const summaryPeriod = detectSummaryPeriod(messages);
+    const periodJournals = summaryPeriod
+      ? filterJournalsByPeriod(allJournals, summaryPeriod)
+      : [];
+
+    // 振り返りモードでジャーナルが0件の場合は即時返答
+    if (summaryPeriod && periodJournals.length === 0) {
+      const label = getPeriodLabel(summaryPeriod);
+      const noDataMsg = `${label}のジャーナルのデータがありません。ジャーナルを記録してから振り返りをお試しください！`;
+      const result = streamText({
+        model: openai("gpt-4o-mini"),
+        system: "ユーザーへ以下のメッセージをそのまま1行で出力してください。追加の説明は不要です。",
+        messages: [{ role: "user" as const, content: noDataMsg }],
+      });
+      return result.toUIMessageStreamResponse();
+    }
+
+    const systemPrompt = buildSystemPrompt(
+      context ?? {},
+      summaryPeriod,
+      periodJournals
+    );
+
+    const result = streamText({
+      model: openai("gpt-4o-mini"),
+      system: systemPrompt,
+      messages: await convertToModelMessages(messages),
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (err) {
+    console.error("[ai-chat] error:", err);
+    return Response.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
