@@ -2,7 +2,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { AuthGuard } from "@/components/auth-guard";
-import { GlobalAiChat } from "@/components/global-ai-chat";
+import { ConditionalAiChat } from "@/components/conditional-ai-chat";
 
 /** ビルド時に Firebase が初期化されないよう、(main) 配下は静的生成しない */
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default function MainLayout({
           </div>
         </SidebarInset>
         <MobileNav />
-        <GlobalAiChat />
+        <ConditionalAiChat />
       </SidebarProvider>
     </AuthGuard>
   );
