@@ -77,7 +77,7 @@ export default function MyPage() {
           setEditForm({
             name: fp.displayName || p.name,
             university: fp.university || p.university,
-            status: fp.grade || p.status,
+            status: (fp.grade || p.status || "").replace(/年生$/, ""),
             graduationDate: fp.graduationDate || p.graduationDate,
             enrollmentDate: fp.enrollmentDate || p.enrollmentDate || "",
           });
@@ -107,7 +107,7 @@ export default function MyPage() {
       const university =
         firestoreProfile?.university ?? profile?.university ?? "〇〇大学";
       const status =
-        firestoreProfile?.grade ?? profile?.status ?? "3年生";
+        (firestoreProfile?.grade ?? profile?.status ?? "").replace(/年生$/, "");
       const graduationDate =
         firestoreProfile?.graduationDate ??
         profile?.graduationDate ??
@@ -119,15 +119,17 @@ export default function MyPage() {
   }, [profileEditOpen, profile, firestoreProfile]);
 
   const handleProfileSave = async () => {
-    saveProfile(editForm);
-    setProfile(editForm);
+    const gradeWithSuffix = editForm.status ? `${editForm.status}年生` : "";
+    const profileToSave = { ...editForm, status: gradeWithSuffix };
+    saveProfile(profileToSave);
+    setProfile(profileToSave);
     setProfileEditOpen(false);
     if (user?.uid) {
       try {
         await saveUserProfile(getDb(), user.uid, {
           displayName: editForm.name,
           university: editForm.university,
-          grade: editForm.status,
+          grade: gradeWithSuffix,
           isProfileCompleted: true,
           graduationDate: editForm.graduationDate,
           enrollmentDate: editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
@@ -135,7 +137,7 @@ export default function MyPage() {
         setFirestoreProfile({
           displayName: editForm.name,
           university: editForm.university,
-          grade: editForm.status,
+          grade: gradeWithSuffix,
           isProfileCompleted: true,
           graduationDate: editForm.graduationDate,
           enrollmentDate: editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
@@ -297,13 +299,22 @@ export default function MyPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="profile-status">学年・状況</Label>
-              <Input
-                id="profile-status"
-                value={editForm.status}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
-                placeholder="3年生"
-              />
+              <Label htmlFor="profile-status">学年</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="profile-status"
+                  type="number"
+                  min={1}
+                  max={9}
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, status: e.target.value }))
+                  }
+                  placeholder="3"
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">年生</span>
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="profile-enrollment">入学年月日</Label>
