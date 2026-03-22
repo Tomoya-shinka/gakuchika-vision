@@ -212,7 +212,7 @@ export default function HomePage() {
       </header>
       <main className="flex flex-1 overflow-auto">
         <div className="relative min-h-full w-full bg-gradient-to-b from-slate-50/80 via-white to-sky-50/30 dark:from-slate-950/50 dark:via-background dark:to-sky-950/20">
-          <div className="mx-auto max-w-4xl space-y-3 px-3 py-4 sm:space-y-5 sm:px-6 sm:py-6">
+          <div className="mx-auto max-w-4xl space-y-3 px-3 pt-4 pb-32 sm:space-y-5 sm:px-6 sm:py-6">
             {/* 卒業カウントダウン */}
             <section className="flex flex-col items-center rounded-2xl border border-border bg-card/80 p-4 text-center shadow-sm backdrop-blur-sm sm:p-6">
               <p className="mb-2 text-sm text-muted-foreground sm:text-base">

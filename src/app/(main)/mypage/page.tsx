@@ -153,7 +153,7 @@ export default function MyPage() {
       </header>
       <main className="flex flex-1 flex-col overflow-auto">
         <div className="relative min-h-full w-full bg-gradient-to-b from-slate-50/60 via-white to-sky-50/20 dark:from-slate-950/30 dark:via-background dark:to-sky-950/10">
-          <div className="mx-auto flex max-w-4xl flex-1 flex-col gap-4 px-4 py-4 sm:gap-6 sm:px-6 sm:py-6 md:gap-8 md:py-10">
+          <div className="mx-auto flex max-w-4xl flex-1 flex-col gap-4 px-4 pt-4 pb-32 sm:gap-6 sm:px-6 sm:py-6 md:gap-8 md:py-10">
             {/* プロフィールカード */}
             <Card
               className={cn(

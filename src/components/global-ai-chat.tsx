@@ -224,8 +224,7 @@ export function GlobalAiChat() {
                   (p): p is { type: "text"; text: string } => p.type === "text"
                 )
                 .map((p) => p.text)
-                .join("") ??
-              (typeof m.content === "string" ? m.content : "");
+                .join("") ?? "";
 
             return (
               <div

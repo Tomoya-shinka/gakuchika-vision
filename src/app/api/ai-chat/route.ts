@@ -36,8 +36,7 @@ function detectSummaryPeriod(messages: UIMessage[]): SummaryPeriod {
     lastUser.parts
       ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
       .map((p) => p.text)
-      .join("") ??
-    (typeof lastUser.content === "string" ? lastUser.content : "");
+      .join("") ?? "";
   const lower = text;
   if (/今週|先週|1週間|一週間|週間|weekly/.test(lower)) return "week";
   if (/今月|先月|1か月|1ヶ月|一ヶ月|一か月|月間|monthly/.test(lower)) return "month";
