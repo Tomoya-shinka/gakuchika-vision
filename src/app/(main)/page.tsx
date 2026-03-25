@@ -631,12 +631,13 @@ export default function HomePage() {
                 </CardContent>
               </Card>
             </div>
+            {/* 目標カルーセル（統計カード下） */}
+            <GoalsCarousel slides={goalsSlides} />
           </div>
-          {/* 右列: 目標カルーセル（上）＋ カレンダー（下、残り埋める） */}
+          {/* 右列: カレンダーのみ */}
           <div className="flex flex-1 min-w-0 flex-col min-h-0">
             <Card className="flex flex-1 min-h-0 flex-col overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
               <CardContent className="flex flex-1 min-h-0 flex-col p-3">
-                <GoalsCarousel slides={goalsSlides} />
                 <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
                   <button onClick={() => setMonthOffset((o) => o - 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="前の月">
                     <ChevronLeft className="size-4" />
