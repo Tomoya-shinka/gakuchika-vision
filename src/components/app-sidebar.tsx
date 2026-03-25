@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Sparkles,
   MessageCircle,
-  Mail,
   LogIn,
   LogOut,
 } from "lucide-react";
@@ -60,11 +59,6 @@ const navItems = [
     title: "自己分析シート",
     url: "/self-analysis",
     icon: Sparkles,
-  },
-  {
-    title: "メッセージ",
-    url: "/messages",
-    icon: Mail,
   },
   {
     title: "My Page",

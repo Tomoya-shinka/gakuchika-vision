@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,34 +54,48 @@ const menuItems = [
 export default function MyPage() {
   const { user } = useAuth();
   const [vision, setVision] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  // localStorageから即座に読み込み（初期レンダリングでisStudentが正しく反映されるよう遅延初期化）
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return loadProfile(); } catch { return null; }
+  });
   const [firestoreProfile, setFirestoreProfile] =
     useState<FirestoreUserProfile | null>(null);
   const [profileEditOpen, setProfileEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState<UserProfile>({
-    name: "TOMOYA",
-    university: "〇〇大学",
-    status: "3年生",
-    graduationDate: "2028-03-31",
-    enrollmentDate: "",
+  const [editForm, setEditForm] = useState<UserProfile>(() => {
+    if (typeof window === "undefined") return { name: "TOMOYA", university: "〇〇大学", status: "3年生", graduationDate: "2028-03-31", enrollmentDate: "", birthDate: "", isStudent: true };
+    try {
+      const p = loadProfile();
+      return { ...p, status: (p.status || "").replace(/年生$/, "") };
+    } catch {
+      return { name: "TOMOYA", university: "〇〇大学", status: "3年生", graduationDate: "2028-03-31", enrollmentDate: "", birthDate: "", isStudent: true };
+    }
   });
 
   const loadProfileData = useCallback(async () => {
     const p = loadProfile();
     setProfile(p);
-    setEditForm(p);
+    setEditForm({ ...p, status: (p.status || "").replace(/年生$/, "") });
     if (user?.uid) {
       try {
         const fp = await getUserProfile(getDb(), user.uid);
-        setFirestoreProfile(fp);
         if (fp) {
+          // isStudent は localStorage を優先（Firestoreにフィールドがない古いデータ対策）
+          const resolvedIsStudent = fp.isStudent !== undefined ? fp.isStudent : p.isStudent ?? true;
+          // Firestoreの値でFirestoreプロフィールを上書き（isStudentはlocalStorage優先）
+          const mergedFp = { ...fp, isStudent: resolvedIsStudent };
+          setFirestoreProfile(mergedFp);
           setEditForm({
             name: fp.displayName || p.name,
             university: fp.university || p.university,
             status: (fp.grade || p.status || "").replace(/年生$/, ""),
             graduationDate: fp.graduationDate || p.graduationDate,
             enrollmentDate: fp.enrollmentDate || p.enrollmentDate || "",
+            birthDate: fp.birthDate || p.birthDate || "",
+            isStudent: resolvedIsStudent,
           });
+        } else {
+          setFirestoreProfile(null);
         }
       } catch {
         setFirestoreProfile(null);
@@ -114,34 +129,37 @@ export default function MyPage() {
         "2028-03-31";
       const enrollmentDate =
         firestoreProfile?.enrollmentDate ?? profile?.enrollmentDate ?? "";
-      setEditForm({ name, university, status, graduationDate, enrollmentDate });
+      const birthDate =
+        firestoreProfile?.birthDate ?? profile?.birthDate ?? "";
+      const isStudent =
+        firestoreProfile?.isStudent !== undefined
+          ? firestoreProfile.isStudent
+          : (profile?.isStudent ?? true);
+      setEditForm({ name, university, status, graduationDate, enrollmentDate, birthDate, isStudent });
     }
   }, [profileEditOpen, profile, firestoreProfile]);
 
   const handleProfileSave = async () => {
-    const gradeWithSuffix = editForm.status ? `${editForm.status}年生` : "";
+    const gradeWithSuffix = editForm.isStudent && editForm.status ? `${editForm.status}年生` : "";
     const profileToSave = { ...editForm, status: gradeWithSuffix };
+    const newFirestoreProfile = {
+      displayName: editForm.name,
+      university: editForm.isStudent ? editForm.university : "",
+      grade: gradeWithSuffix,
+      isProfileCompleted: true,
+      graduationDate: editForm.isStudent ? editForm.graduationDate : undefined,
+      enrollmentDate: editForm.isStudent && editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
+      birthDate: editForm.birthDate?.trim() ? editForm.birthDate.trim() : undefined,
+      isStudent: editForm.isStudent ?? true,
+    };
+    // stateを同期的に更新してからモーダルを閉じる（再オープン時に最新値を参照するため）
     saveProfile(profileToSave);
     setProfile(profileToSave);
+    setFirestoreProfile(newFirestoreProfile);
     setProfileEditOpen(false);
     if (user?.uid) {
       try {
-        await saveUserProfile(getDb(), user.uid, {
-          displayName: editForm.name,
-          university: editForm.university,
-          grade: gradeWithSuffix,
-          isProfileCompleted: true,
-          graduationDate: editForm.graduationDate,
-          enrollmentDate: editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
-        });
-        setFirestoreProfile({
-          displayName: editForm.name,
-          university: editForm.university,
-          grade: gradeWithSuffix,
-          isProfileCompleted: true,
-          graduationDate: editForm.graduationDate,
-          enrollmentDate: editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
-        });
+        await saveUserProfile(getDb(), user.uid, newFirestoreProfile);
       } catch {
         // Firestore 保存失敗時も localStorage は更新済み
       }
@@ -186,22 +204,24 @@ export default function MyPage() {
                         profile?.name ??
                         "ユーザー名を設定"}
                     </h2>
-                    <Badge
-                      variant="secondary"
-                      className="mt-1 px-2 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 sm:mt-4 sm:px-4 sm:py-1.5 sm:text-base dark:bg-sky-900/50 dark:text-sky-200"
-                    >
-                      {[firestoreProfile?.university, firestoreProfile?.grade]
-                        .filter(Boolean).length > 0
-                        ? [firestoreProfile?.university, firestoreProfile?.grade]
-                            .filter(Boolean)
-                            .join(" ・ ")
-                        : [profile?.university, profile?.status].filter(Boolean)
-                            .length > 0
-                          ? [profile?.university, profile?.status]
+                    {(firestoreProfile?.isStudent ?? profile?.isStudent ?? true) && (
+                      <Badge
+                        variant="secondary"
+                        className="mt-1 px-2 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 sm:mt-4 sm:px-4 sm:py-1.5 sm:text-base dark:bg-sky-900/50 dark:text-sky-200"
+                      >
+                        {[firestoreProfile?.university, firestoreProfile?.grade]
+                          .filter(Boolean).length > 0
+                          ? [firestoreProfile?.university, firestoreProfile?.grade]
                               .filter(Boolean)
                               .join(" ・ ")
-                          : "大学名・学年を設定"}
-                    </Badge>
+                          : [profile?.university, profile?.status].filter(Boolean)
+                              .length > 0
+                            ? [profile?.university, profile?.status]
+                                .filter(Boolean)
+                                .join(" ・ ")
+                            : "大学名・学年を設定"}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -275,7 +295,7 @@ export default function MyPage() {
 
       {/* プロフィール編集モーダル */}
       <Dialog open={profileEditOpen} onOpenChange={setProfileEditOpen}>
-        <DialogContent className="sm:max-w-md" showCloseButton>
+        <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto" showCloseButton>
           <DialogHeader>
             <DialogTitle>プロフィールを編集</DialogTitle>
           </DialogHeader>
@@ -289,55 +309,87 @@ export default function MyPage() {
                 placeholder="TOMOYA"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-university">所属大学</Label>
-              <Input
-                id="profile-university"
-                value={editForm.university}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, university: e.target.value }))}
-                placeholder="〇〇大学"
+            {/* 大学生チェックボックス */}
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <Checkbox
+                id="profile-is-student"
+                checked={editForm.isStudent ?? true}
+                onCheckedChange={(checked) =>
+                  setEditForm((prev) => ({ ...prev, isStudent: Boolean(checked) }))
+                }
               />
+              <Label htmlFor="profile-is-student" className="cursor-pointer font-medium">
+                大学生
+              </Label>
             </div>
+            {/* 大学生のみ表示するフィールド */}
+            {(editForm.isStudent ?? true) && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="profile-university">所属大学</Label>
+                  <Input
+                    id="profile-university"
+                    value={editForm.university}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, university: e.target.value }))}
+                    placeholder="〇〇大学"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="profile-status">学年</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="profile-status"
+                      type="number"
+                      min={1}
+                      max={9}
+                      value={editForm.status}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({ ...prev, status: e.target.value }))
+                      }
+                      placeholder="3"
+                      className="w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">年生</span>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="profile-enrollment">入学年月日</Label>
+                  <Input
+                    id="profile-enrollment"
+                    type="date"
+                    value={editForm.enrollmentDate ?? ""}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, enrollmentDate: e.target.value }))
+                    }
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    入学年月日を設定すると「大学生活 ○日目」が各画面に表示されます。
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="profile-graduation">卒業予定日</Label>
+                  <Input
+                    id="profile-graduation"
+                    type="date"
+                    value={editForm.graduationDate}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, graduationDate: e.target.value }))}
+                  />
+                </div>
+              </>
+            )}
             <div className="grid gap-2">
-              <Label htmlFor="profile-status">学年</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="profile-status"
-                  type="number"
-                  min={1}
-                  max={9}
-                  value={editForm.status}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, status: e.target.value }))
-                  }
-                  placeholder="3"
-                  className="w-24"
-                />
-                <span className="text-sm text-muted-foreground">年生</span>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-enrollment">入学年月日</Label>
+              <Label htmlFor="profile-birth">生年月日</Label>
               <Input
-                id="profile-enrollment"
+                id="profile-birth"
                 type="date"
-                value={editForm.enrollmentDate ?? ""}
+                value={editForm.birthDate ?? ""}
                 onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, enrollmentDate: e.target.value }))
+                  setEditForm((prev) => ({ ...prev, birthDate: e.target.value }))
                 }
               />
               <p className="text-[11px] text-muted-foreground">
-                入学年月日を設定すると「大学生活 ○日目」が各画面に表示されます。
+                生年月日を設定すると「人生の残り時間」カウントダウンが表示されます。
               </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-graduation">卒業予定日</Label>
-              <Input
-                id="profile-graduation"
-                type="date"
-                value={editForm.graduationDate}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, graduationDate: e.target.value }))}
-              />
             </div>
           </div>
           <DialogFooter>

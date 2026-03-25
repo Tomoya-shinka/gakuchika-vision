@@ -38,9 +38,14 @@ import {
   List,
   ListOrdered,
   Mic,
-  MicOff,
   MoreHorizontal,
+  Play,
+  Pause,
+  Square,
+  ImagePlus,
+  X,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog,
@@ -61,8 +66,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -258,8 +261,8 @@ export default function JournalPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showSelfAnalysisPrompt, setShowSelfAnalysisPrompt] = useState(false);
 
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -269,6 +272,34 @@ export default function JournalPage() {
     | { type: "field"; field: string; cursorStart: number; cursorEnd: number }
     | { type: "default" }
   >({ type: "default" });
+
+  // 音声レビューモーダル（録音直後の確認）
+  const [voiceReview, setVoiceReview] = useState<{
+    audioUrl: string;
+    audioBlob: Blob;
+    durationSec: number;
+    transcription: string;
+    isTranscribing: boolean;
+  } | null>(null);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isVoicePlaying, setIsVoicePlaying] = useState(false);
+  const [voicePlaySec, setVoicePlaySec] = useState(0);
+  const [voiceDurationSec, setVoiceDurationSec] = useState(0);
+
+  // 画像添付
+  const [attachedImages, setAttachedImages] = useState<{ file: File; localUrl: string }[]>([]);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // エディタに添付された音声
+  const [attachedAudio, setAttachedAudio] = useState<{
+    blob: Blob;
+    localUrl: string;
+    transcription: string;
+    durationSec: number;
+  } | null>(null);
+  const attachedAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isAttachedPlaying, setIsAttachedPlaying] = useState(false);
+  const [attachedPlaySec, setAttachedPlaySec] = useState(0);
 
   useEffect(() => { templateRef.current = template; }, [template]);
 
@@ -298,6 +329,7 @@ export default function JournalPage() {
   const [freeEditorEmpty, setFreeEditorEmpty] = useState(true);
   const [freeEditorCharCount, setFreeEditorCharCount] = useState(0);
   const [todayDayLabel, setTodayDayLabel] = useState<string | null>(null);
+  const [isStudent, setIsStudent] = useState<boolean>(true);
 
   useEffect(() => {
     if (goalsPanelOpen) {
@@ -308,16 +340,24 @@ export default function JournalPage() {
   useEffect(() => {
     if (!user?.uid) {
       setTodayDayLabel(null);
+      setIsStudent(true);
       return;
     }
     const load = async () => {
       try {
         const snap = await getDoc(doc(getDb(), "users", user.uid));
         const data = snap.data() as Record<string, unknown> | undefined;
+        const nextIsStudent = data?.isStudent !== undefined ? Boolean(data.isStudent) : true;
+        setIsStudent(nextIsStudent);
+        if (!nextIsStudent) {
+          setTodayDayLabel(null);
+          return;
+        }
         const enrollment = data?.enrollmentDate ?? undefined;
         const day = calculateUnivDay(new Date(), enrollment);
         setTodayDayLabel(day != null ? formatUniversityDayLabel(day) : null);
       } catch {
+        setIsStudent(true);
         setTodayDayLabel(null);
       }
     };
@@ -362,8 +402,6 @@ export default function JournalPage() {
   };
 
   const handleMicClick = async () => {
-    if (isTranscribing) return;
-
     if (isRecording) {
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
@@ -410,45 +448,25 @@ export default function JournalPage() {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        audioChunksRef.current = [];
-        setIsTranscribing(true);
-        try {
-          const form = new FormData();
-          form.append("audio", audioBlob, "audio.webm");
-          const res = await fetch("/api/transcribe", { method: "POST", body: form });
-          if (!res.ok) throw new Error("transcription failed");
-          const { text } = (await res.json()) as { text: string };
-          if (!text) return;
-
-          const target = transcribeTargetRef.current;
-          const tmpl = templateRef.current;
-
-          if (target.type === "tiptap") {
-            freeEditorRef.current?.chain().focus().insertContent(text).run();
-          } else if (target.type === "field") {
-            const setter = fieldSetters[target.field];
-            if (setter) {
-              const { cursorStart, cursorEnd } = target;
-              setter((prev) => prev.slice(0, cursorStart) + text + prev.slice(cursorEnd));
-            }
-          } else {
-            // デフォルト: カーソル位置なし
-            if (tmpl === "free") {
-              freeEditorRef.current?.chain().focus().insertContent(text).run();
-            } else if (tmpl === "star") {
-              setSituation((prev) => prev ? prev + "\n" + text : text);
-            } else if (tmpl === "short") {
-              setToday((prev) => prev ? prev + "\n" + text : text);
-            }
+      recorder.onstop = () => {
+        void (async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          audioChunksRef.current = [];
+          const audioUrl = URL.createObjectURL(audioBlob);
+          setIsVoiceMode(false);
+          setVoiceReview({ audioUrl, audioBlob, durationSec: 0, transcription: "", isTranscribing: true });
+          try {
+            const form = new FormData();
+            form.append("audio", audioBlob, "audio.webm");
+            const res = await fetch("/api/transcribe", { method: "POST", body: form });
+            if (!res.ok) throw new Error("transcription failed");
+            const { text } = (await res.json()) as { text: string };
+            setVoiceReview((prev) => prev ? { ...prev, transcription: text ?? "", isTranscribing: false } : prev);
+          } catch {
+            setVoiceReview((prev) => prev ? { ...prev, isTranscribing: false } : prev);
           }
-        } catch {
-          toast.error("文字起こしに失敗しました");
-        } finally {
-          setIsTranscribing(false);
-        }
+        })();
       };
 
       recorder.start();
@@ -460,6 +478,8 @@ export default function JournalPage() {
 
   const hasTitleOrContent =
     title.trim().length > 0 ||
+    !!attachedAudio ||
+    attachedImages.length > 0 ||
     (template === "free" && hasFreeContent) ||
     (template === "star" && hasStarContent) ||
     (template === "short" && hasShortContent);
@@ -474,10 +494,51 @@ export default function JournalPage() {
     } else if (template === "short") {
       trimmed = buildShortHtml({ today, insights, tomorrow });
     }
-    if (!trimmed || isSaving) return;
+    if (!trimmed && !attachedAudio && attachedImages.length === 0) return;
+    if (isSaving) return;
 
     setIsSaving(true);
     try {
+      // 音声添付がある場合はアップロード
+      let uploadedAudioUrl: string | undefined;
+      let uploadedDurationSec: number | undefined;
+      let uploadedTranscription: string | undefined;
+      if (attachedAudio && user?.uid) {
+        const form = new FormData();
+        form.append("audio", attachedAudio.blob, "audio.webm");
+        form.append("uid", user.uid);
+        const uploadRes = await fetch("/api/upload-audio", { method: "POST", body: form });
+        if (!uploadRes.ok) {
+          const err = (await uploadRes.json()) as { error?: string; detail?: string };
+          throw new Error(err.detail ?? err.error ?? "upload failed");
+        }
+        const { audioUrl: url } = (await uploadRes.json()) as { audioUrl: string };
+        uploadedAudioUrl = url;
+        uploadedDurationSec = Math.floor(attachedAudio.durationSec);
+        uploadedTranscription = attachedAudio.transcription || undefined;
+      }
+
+      // 画像アップロード（Storage 有効化後に動作）
+      let uploadedImageUrls: string[] | undefined;
+      if (attachedImages.length > 0 && user?.uid) {
+        const urls: string[] = [];
+        for (const img of attachedImages) {
+          const ext = img.file.name.split(".").pop() ?? "jpg";
+          const form = new FormData();
+          form.append("image", img.file);
+          form.append("uid", user.uid);
+          form.append("ext", ext);
+          const res = await fetch("/api/upload-image", { method: "POST", body: form });
+          if (!res.ok) {
+            const err = (await res.json()) as { error?: string };
+            throw new Error(err.error ?? "image upload failed");
+          }
+          const { imageUrl } = (await res.json()) as { imageUrl: string };
+          urls.push(imageUrl);
+        }
+        uploadedImageUrls = urls;
+      }
+
       const createdAt = new Date().toISOString();
       let entryId = crypto.randomUUID();
 
@@ -488,6 +549,12 @@ export default function JournalPage() {
             userId: user.uid,
             title: title.trim() || "",
             content: trimmed,
+            ...(uploadedAudioUrl && {
+              audioUrl: uploadedAudioUrl,
+              audioDurationSec: uploadedDurationSec,
+            }),
+            ...(uploadedTranscription && { transcription: uploadedTranscription }),
+            ...(uploadedImageUrls && { imageUrls: uploadedImageUrls }),
             createdAt: Timestamp.fromDate(new Date(createdAt)),
             isPublic: visibility === "public",
             visibility,
@@ -504,6 +571,8 @@ export default function JournalPage() {
         id: entryId,
         content: trimmed,
         title: title.trim() || undefined,
+        ...(uploadedAudioUrl && { audioUrl: uploadedAudioUrl, audioDurationSec: uploadedDurationSec }),
+        ...(uploadedImageUrls && { imageUrls: uploadedImageUrls }),
         visibility,
         createdAt,
         category: "未分類",
@@ -522,6 +591,14 @@ export default function JournalPage() {
       setToday(""); setInsights(""); setTomorrow("");
       setAiQuestion(null);
       setIsSaveModalOpen(false);
+      if (attachedAudio) {
+        URL.revokeObjectURL(attachedAudio.localUrl);
+        setAttachedAudio(null);
+        setIsAttachedPlaying(false);
+        setAttachedPlaySec(0);
+      }
+      attachedImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
+      setAttachedImages([]);
 
       toast.success("保存しました", {
         description:
@@ -546,6 +623,7 @@ export default function JournalPage() {
     setIsSaveModalOpen(true);
   };
 
+
   const effectiveTotalChars =
     template === "free"
       ? freeEditorCharCount || content.length
@@ -555,42 +633,6 @@ export default function JournalPage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[#fafafa] dark:bg-slate-950/50">
-      {/* 録音中 - 画面周囲の赤いビネット */}
-      {isRecording && (
-        <div
-          className="pointer-events-none fixed inset-0 z-[100]"
-          style={{ boxShadow: "inset 0 0 80px 24px rgba(239,68,68,0.15)" }}
-          aria-hidden
-        />
-      )}
-
-      {/* 録音中 / 文字起こし中 フローティングピル */}
-      {(isRecording || isTranscribing) && (
-        <div className="fixed bottom-20 left-1/2 z-[101] -translate-x-1/2">
-          <button
-            type="button"
-            onClick={isRecording ? handleMicClick : undefined}
-            className={cn(
-              "flex items-center gap-2.5 rounded-full px-5 py-3 text-sm font-medium shadow-2xl transition-all",
-              isRecording
-                ? "cursor-pointer bg-red-500 text-white hover:bg-red-600 active:scale-95"
-                : "cursor-default border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            )}
-          >
-            {isRecording ? (
-              <>
-                <span className="size-2.5 animate-pulse rounded-full bg-white" aria-hidden />
-                録音中 {formatRecordingTime(recordingSeconds)} · タップして停止
-              </>
-            ) : (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                文字起こし中...
-              </>
-            )}
-          </button>
-        </div>
-      )}
       <header className="sticky top-0 z-50 flex h-14 w-full shrink-0 flex-nowrap items-center justify-between overflow-visible border-b border-slate-200/60 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex shrink-0 flex-nowrap items-center gap-2">
           <h1 className="text-sm font-medium text-slate-600 dark:text-slate-400">
@@ -734,27 +776,44 @@ export default function JournalPage() {
               size="icon"
               className={cn(
                 "size-8 shrink-0",
-                isRecording
-                  ? "animate-pulse text-red-500 hover:text-red-600"
+                isVoiceMode
+                  ? "bg-sky-100 text-sky-600 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               )}
-              disabled={isTranscribing}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={handleMicClick}
-              title={isRecording ? "録音を停止" : "音声入力"}
+              onClick={() => setIsVoiceMode((v) => !v)}
+              title="音声入力モード"
             >
-              {isTranscribing ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : isRecording ? (
-                <MicOff className="size-4" aria-hidden />
-              ) : (
-                <Mic className="size-4" aria-hidden />
-              )}
+              <Mic className="size-4" aria-hidden />
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => imageInputRef.current?.click()}
+              title="画像を添付"
+            >
+              <ImagePlus className="size-4" aria-hidden />
             </Button>
           </div>
         </div>
 
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2 whitespace-nowrap border-l border-slate-200/60 pl-3 dark:border-slate-700">
+          {/* 画像添付ボタン - モバイルのみ */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:hidden"
+            onClick={() => imageInputRef.current?.click()}
+            title="画像を添付"
+          >
+            <ImagePlus className="size-4" aria-hidden />
+          </Button>
+
           {/* マイクボタン - モバイルのみ */}
           <Button
             type="button"
@@ -762,22 +821,15 @@ export default function JournalPage() {
             size="icon"
             className={cn(
               "size-8 shrink-0 sm:hidden",
-              isRecording
-                ? "animate-pulse text-red-500 hover:text-red-600"
+              isVoiceMode
+                ? "bg-sky-100 text-sky-600 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             )}
-            disabled={isTranscribing}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={handleMicClick}
-            title={isRecording ? "録音を停止" : "音声入力"}
+            onClick={() => setIsVoiceMode((v) => !v)}
+            title="音声入力モード"
           >
-            {isTranscribing ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : isRecording ? (
-              <MicOff className="size-4" aria-hidden />
-            ) : (
-              <Mic className="size-4" aria-hidden />
-            )}
+            <Mic className="size-4" aria-hidden />
           </Button>
 
           {/* その他メニュー - モバイルのみ */}
@@ -859,15 +911,15 @@ export default function JournalPage() {
         </div>
       </header>
 
-      {todayDayLabel ? (
+      {isStudent && todayDayLabel ? (
         <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200 sm:px-6">
           {todayDayLabel}
         </div>
-      ) : (
+      ) : isStudent ? (
         <div className="border-b border-slate-100 bg-amber-50/80 px-4 py-2 text-xs text-amber-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-amber-300 sm:px-6">
           入学年月日を設定すると、ここに「大学生活 ○日目」が表示されます（My Page のプロフィール編集から設定できます）。
         </div>
-      )}
+      ) : null}
 
       <main className="flex flex-1 flex-col overflow-auto">
         <div
@@ -906,8 +958,162 @@ export default function JournalPage() {
                 </div>
               )}
 
+              {/* 音声添付バナー */}
+              {attachedAudio && (
+                <div className="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950/40">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-sky-700 dark:text-sky-400">音声メモ</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(attachedAudio.localUrl);
+                        setAttachedAudio(null);
+                        setIsAttachedPlaying(false);
+                        setAttachedPlaySec(0);
+                      }}
+                      className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                      削除
+                    </button>
+                  </div>
+                  <audio
+                    ref={attachedAudioRef}
+                    src={attachedAudio.localUrl}
+                    onTimeUpdate={() => setAttachedPlaySec(attachedAudioRef.current?.currentTime ?? 0)}
+                    onEnded={() => {
+                      setIsAttachedPlaying(false);
+                      setAttachedPlaySec(0);
+                      if (attachedAudioRef.current) attachedAudioRef.current.currentTime = 0;
+                    }}
+                  />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const audio = attachedAudioRef.current;
+                        if (!audio) return;
+                        if (isAttachedPlaying) { audio.pause(); setIsAttachedPlaying(false); }
+                        else { void audio.play(); setIsAttachedPlaying(true); }
+                      }}
+                      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white hover:bg-sky-600"
+                    >
+                      {isAttachedPlaying ? <Pause className="size-4" /> : <Play className="size-4 translate-x-0.5" />}
+                    </button>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <input
+                        type="range"
+                        min={0}
+                        max={attachedAudio.durationSec || 1}
+                        step={0.1}
+                        value={attachedPlaySec}
+                        onChange={(e) => {
+                          const t = Number(e.target.value);
+                          setAttachedPlaySec(t);
+                          if (attachedAudioRef.current) attachedAudioRef.current.currentTime = t;
+                        }}
+                        className="h-1.5 w-full cursor-pointer accent-sky-500"
+                      />
+                      <div className="flex justify-between text-[11px] text-slate-500">
+                        <span>{formatRecordingTime(Math.floor(attachedPlaySec))}</span>
+                        <span>{formatRecordingTime(Math.floor(attachedAudio.durationSec))}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {attachedAudio.transcription && (
+                    <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                      {attachedAudio.transcription}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 画像添付 hidden input */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  const newImages = files.map((file) => ({
+                    file,
+                    localUrl: URL.createObjectURL(file),
+                  }));
+                  setAttachedImages((prev) => [...prev, ...newImages]);
+                  e.target.value = "";
+                }}
+              />
+
+              {/* 画像プレビュー */}
+              {attachedImages.length > 0 && (
+                <div className="mb-6 flex flex-wrap gap-3">
+                  {attachedImages.map((img, i) => (
+                    <div key={img.localUrl} className="relative group">
+                      <img
+                        src={img.localUrl}
+                        alt={`添付画像 ${i + 1}`}
+                        className="h-28 w-28 rounded-xl object-cover border border-slate-200 dark:border-slate-700 sm:h-36 sm:w-36"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          URL.revokeObjectURL(img.localUrl);
+                          setAttachedImages((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
+                        className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-slate-800 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="画像を削除"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="flex h-28 w-28 items-center justify-center rounded-xl border-2 border-dashed border-slate-300 text-slate-400 hover:border-sky-400 hover:text-sky-500 transition-colors dark:border-slate-700 dark:hover:border-sky-500 sm:h-36 sm:w-36"
+                    aria-label="画像を追加"
+                  >
+                    <ImagePlus className="size-6" />
+                  </button>
+                </div>
+              )}
+
+              {/* 大きなマイクボタン（音声入力モード時のみ） */}
+              {isVoiceMode && <div className="flex flex-col items-center gap-3 py-8 sm:py-12">
+                <button
+                  type="button"
+                  onClick={handleMicClick}
+                  className={cn(
+                    "relative flex size-24 items-center justify-center rounded-full shadow-xl transition-all duration-200 active:scale-95 sm:size-28",
+                    isRecording
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : "bg-sky-500 text-white hover:bg-sky-600"
+                  )}
+                  aria-label={isRecording ? "録音を停止" : "音声入力を開始"}
+                >
+                  {/* 録音中のリップルエフェクト */}
+                  {isRecording && (
+                    <>
+                      <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-30" />
+                      <span className="absolute inset-0 animate-pulse rounded-full bg-red-400 opacity-20" />
+                    </>
+                  )}
+                  {isRecording ? (
+                    <Square className="size-10 fill-white" aria-hidden />
+                  ) : (
+                    <Mic className="size-10" aria-hidden />
+                  )}
+                </button>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  {isRecording
+                    ? `録音中 ${formatRecordingTime(recordingSeconds)} · タップして停止`
+                    : "タップして音声入力"}
+                </p>
+              </div>}
+
               <div
-                data-journal-editor
+                data-journal-editor=""
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === "b") {
                     e.stopPropagation();
@@ -1016,6 +1222,145 @@ export default function JournalPage() {
           </SheetContent>
         </Sheet>
       )}
+
+      {/* 音声レビューモーダル */}
+      <Dialog
+        open={!!voiceReview}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (voiceReview) URL.revokeObjectURL(voiceReview.audioUrl);
+            setVoiceReview(null);
+            setIsVoicePlaying(false);
+            setVoicePlaySec(0);
+            setVoiceDurationSec(0);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>音声の確認</DialogTitle>
+            <DialogDescription>
+              録音した音声と文字起こしを確認して、エディタに添付できます。
+            </DialogDescription>
+          </DialogHeader>
+
+          {voiceReview && (
+            <div className="space-y-4">
+              {/* 音声プレイヤー */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <audio
+                  ref={voiceAudioRef}
+                  src={voiceReview.audioUrl}
+                  onLoadedMetadata={() => {
+                    const dur = voiceAudioRef.current?.duration ?? 0;
+                    setVoiceDurationSec(isFinite(dur) ? dur : 0);
+                  }}
+                  onTimeUpdate={() => setVoicePlaySec(voiceAudioRef.current?.currentTime ?? 0)}
+                  onEnded={() => {
+                    setIsVoicePlaying(false);
+                    setVoicePlaySec(0);
+                    if (voiceAudioRef.current) voiceAudioRef.current.currentTime = 0;
+                  }}
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const audio = voiceAudioRef.current;
+                      if (!audio) return;
+                      if (isVoicePlaying) { audio.pause(); setIsVoicePlaying(false); }
+                      else { void audio.play(); setIsVoicePlaying(true); }
+                    }}
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white transition-colors hover:bg-sky-600 active:scale-95"
+                  >
+                    {isVoicePlaying ? <Pause className="size-5" /> : <Play className="size-5 translate-x-0.5" />}
+                  </button>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <input
+                      type="range"
+                      min={0}
+                      max={voiceDurationSec || 1}
+                      step={0.1}
+                      value={voicePlaySec}
+                      onChange={(e) => {
+                        const t = Number(e.target.value);
+                        setVoicePlaySec(t);
+                        if (voiceAudioRef.current) voiceAudioRef.current.currentTime = t;
+                      }}
+                      className="h-1.5 w-full cursor-pointer accent-sky-500"
+                    />
+                    <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>{formatRecordingTime(Math.floor(voicePlaySec))}</span>
+                      <span>{formatRecordingTime(Math.floor(voiceDurationSec))}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 文字起こし */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">文字起こし</p>
+                  {voiceReview.isTranscribing && (
+                    <span className="flex items-center gap-1 text-xs text-slate-400">
+                      <Loader2 className="size-3 animate-spin" />
+                      変換中...
+                    </span>
+                  )}
+                </div>
+                <Textarea
+                  value={voiceReview.transcription}
+                  onChange={(e) =>
+                    setVoiceReview((prev) => prev ? { ...prev, transcription: e.target.value } : prev)
+                  }
+                  placeholder={voiceReview.isTranscribing ? "文字起こし中..." : "文字起こし結果がここに表示されます"}
+                  disabled={voiceReview.isTranscribing}
+                  rows={4}
+                  className="resize-none text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (voiceReview) URL.revokeObjectURL(voiceReview.audioUrl);
+                setVoiceReview(null);
+                setIsVoicePlaying(false);
+                setVoicePlaySec(0);
+                setVoiceDurationSec(0);
+              }}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={() => {
+                if (!voiceReview) return;
+                // 既存の添付があればURLを解放
+                if (attachedAudio) URL.revokeObjectURL(attachedAudio.localUrl);
+                setAttachedAudio({
+                  blob: voiceReview.audioBlob,
+                  localUrl: voiceReview.audioUrl,
+                  transcription: voiceReview.transcription,
+                  durationSec: voiceDurationSec,
+                });
+                setAttachedPlaySec(0);
+                setIsAttachedPlaying(false);
+                // モーダルを閉じる（URLはattachedAudioで引き続き使うのでrevokeしない）
+                setVoiceReview(null);
+                setIsVoicePlaying(false);
+                setVoicePlaySec(0);
+                setVoiceDurationSec(0);
+              }}
+            >
+              <Mic className="mr-2 size-4" />
+              エディタに添付
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={isSaveModalOpen}

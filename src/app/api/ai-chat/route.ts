@@ -1,5 +1,10 @@
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
+import {
+  type ChatMode,
+  SECTION_LABELS,
+  COACHING_SYSTEM_PROMPT,
+} from "@/lib/ai-prompts";
 
 export const maxDuration = 60;
 
@@ -19,14 +24,7 @@ interface ChatContext {
   selfAnalysis?: SelfAnalysisContext[];
 }
 
-const SECTION_LABELS: Record<string, string> = {
-  "small-wins": "成功体験・小さな達成",
-  fun: "楽しかったこと・夢中になったこと",
-  strength: "得意なこと・強み",
-  dream: "長期ビジョン・将来の夢",
-};
-
-type SummaryPeriod = "week" | "month" | null;
+type SummaryPeriod = "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | null;
 
 /** ユーザーの最新メッセージから振り返り期間を検出する */
 function detectSummaryPeriod(messages: UIMessage[]): SummaryPeriod {
@@ -37,63 +35,112 @@ function detectSummaryPeriod(messages: UIMessage[]): SummaryPeriod {
       ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
       .map((p) => p.text)
       .join("") ?? "";
-  const lower = text;
-  if (/今週|先週|1週間|一週間|週間|weekly/.test(lower)) return "week";
-  if (/今月|先月|1か月|1ヶ月|一ヶ月|一か月|月間|monthly/.test(lower)) return "month";
+  if (/今週/.test(text)) return "thisWeek";
+  if (/先週|1週間|一週間|週間|weekly/.test(text)) return "lastWeek";
+  if (/今月/.test(text)) return "thisMonth";
+  if (/先月|1か月|1ヶ月|一ヶ月|一か月|月間|monthly/.test(text)) return "lastMonth";
   return null;
 }
 
-/** 期間内のジャーナルを抽出する */
+/** 期間内のジャーナルを抽出する（週は日曜始まり） */
 function filterJournalsByPeriod(
   journals: JournalContext[],
   period: SummaryPeriod
 ): JournalContext[] {
   if (!period) return journals;
   const now = new Date();
-  let from: Date;
-  if (period === "week") {
-    // 先週月曜〜日曜（先週全体）を対象
-    const dayOfWeek = now.getDay(); // 0=日,1=月,...
-    const daysToLastMonday = dayOfWeek === 0 ? 13 : dayOfWeek + 6;
-    from = new Date(now);
-    from.setDate(now.getDate() - daysToLastMonday);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(from);
-    to.setDate(from.getDate() + 6);
-    to.setHours(23, 59, 59, 999);
+  const dayOfWeek = now.getDay(); // 0=日, 1=月, ..., 6=土
+
+  if (period === "thisWeek") {
+    // 今週の日曜00:00〜現在
+    const thisSunday = new Date(now);
+    thisSunday.setDate(now.getDate() - dayOfWeek);
+    thisSunday.setHours(0, 0, 0, 0);
+    return journals.filter((j) => new Date(j.createdAt) >= thisSunday);
+  }
+
+  if (period === "lastWeek") {
+    // 先週の日曜00:00〜土曜23:59:59
+    const lastSunday = new Date(now);
+    lastSunday.setDate(now.getDate() - dayOfWeek - 7);
+    lastSunday.setHours(0, 0, 0, 0);
+    const lastSaturday = new Date(lastSunday);
+    lastSaturday.setDate(lastSunday.getDate() + 6);
+    lastSaturday.setHours(23, 59, 59, 999);
     return journals.filter((j) => {
       const d = new Date(j.createdAt);
-      return d >= from && d <= to;
-    });
-  } else {
-    // 先月1日〜末日
-    const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const firstOfLastMonth = new Date(
-      firstOfThisMonth.getFullYear(),
-      firstOfThisMonth.getMonth() - 1,
-      1
-    );
-    const lastOfLastMonth = new Date(firstOfThisMonth.getTime() - 1);
-    return journals.filter((j) => {
-      const d = new Date(j.createdAt);
-      return d >= firstOfLastMonth && d <= lastOfLastMonth;
+      return d >= lastSunday && d <= lastSaturday;
     });
   }
+
+  if (period === "thisMonth") {
+    // 今月1日00:00〜現在
+    const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return journals.filter((j) => new Date(j.createdAt) >= firstOfThisMonth);
+  }
+
+  // lastMonth: 先月1日〜末日
+  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const firstOfLastMonth = new Date(
+    firstOfThisMonth.getFullYear(),
+    firstOfThisMonth.getMonth() - 1,
+    1
+  );
+  const lastOfLastMonth = new Date(firstOfThisMonth.getTime() - 1);
+  return journals.filter((j) => {
+    const d = new Date(j.createdAt);
+    return d >= firstOfLastMonth && d <= lastOfLastMonth;
+  });
 }
 
 function getPeriodLabel(period: SummaryPeriod): string {
-  if (period === "week") return "先週";
-  if (period === "month") return "先月";
+  if (period === "thisWeek") return "今週";
+  if (period === "lastWeek") return "先週";
+  if (period === "thisMonth") return "今月";
+  if (period === "lastMonth") return "先月";
   return "";
 }
 
 function buildSystemPrompt(
   context: ChatContext,
   summaryPeriod: SummaryPeriod,
-  periodJournals: JournalContext[]
+  periodJournals: JournalContext[],
+  mode: ChatMode = "default"
 ): string {
   const allJournals = context?.journals ?? [];
   const selfAnalysis = context?.selfAnalysis ?? [];
+
+  // コーチングモード: 専用プロンプト + ユーザーデータを追記
+  if (mode === "coaching") {
+    let prompt = COACHING_SYSTEM_PROMPT;
+    if (allJournals.length > 0) {
+      prompt += `\n## ジャーナル記録（直近 ${allJournals.length} 件）\n`;
+      allJournals.forEach((j, i) => {
+        const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
+        const title = j.title ? `「${j.title}」` : "無題";
+        prompt += `\n### ${i + 1}. ${title} (${date})\n${j.contentPlain}\n`;
+      });
+      prompt += "\n";
+    } else {
+      prompt += `\n## ジャーナル記録\nまだ記録がありません。\n\n`;
+    }
+    if (selfAnalysis.length > 0) {
+      prompt += `## 自己分析シート\n`;
+      const grouped: Record<string, string[]> = {};
+      for (const item of selfAnalysis) {
+        if (!grouped[item.sectionId]) grouped[item.sectionId] = [];
+        grouped[item.sectionId].push(item.text);
+      }
+      for (const [sectionId, label] of Object.entries(SECTION_LABELS)) {
+        const items = grouped[sectionId];
+        if (items && items.length > 0) {
+          prompt += `\n### ${label}\n`;
+          items.forEach((t) => (prompt += `- ${t}\n`));
+        }
+      }
+    }
+    return prompt;
+  }
 
   // 振り返りモード: ジャーナルのみ使用
   if (summaryPeriod) {
@@ -174,9 +221,10 @@ function buildSystemPrompt(
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, context } = body as {
+    const { messages, context, mode = "default" } = body as {
       messages: UIMessage[];
       context?: ChatContext;
+      mode?: ChatMode;
     };
 
     if (!process.env.OPENAI_API_KEY) {
@@ -188,8 +236,8 @@ export async function POST(req: Request) {
 
     const allJournals = context?.journals ?? [];
 
-    // 振り返り期間の検出
-    const summaryPeriod = detectSummaryPeriod(messages);
+    // コーチングモードでは振り返り検出をスキップ
+    const summaryPeriod = mode === "coaching" ? null : detectSummaryPeriod(messages);
     const periodJournals = summaryPeriod
       ? filterJournalsByPeriod(allJournals, summaryPeriod)
       : [];
@@ -209,7 +257,8 @@ export async function POST(req: Request) {
     const systemPrompt = buildSystemPrompt(
       context ?? {},
       summaryPeriod,
-      periodJournals
+      periodJournals,
+      mode
     );
 
     const result = streamText({

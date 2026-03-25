@@ -59,6 +59,7 @@ export default function MyPageRecords() {
   const [localEntries, setLocalEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [enrollmentDate, setEnrollmentDate] = useState<string | null>(null);
+  const [isStudent, setIsStudent] = useState<boolean>(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [visibilityTargetJournal, setVisibilityTargetJournal] = useState<FirestoreJournal | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -67,6 +68,7 @@ export default function MyPageRecords() {
   useEffect(() => {
     if (!user?.uid) {
       setEnrollmentDate(null);
+      setIsStudent(true);
       return;
     }
     let cancelled = false;
@@ -74,11 +76,15 @@ export default function MyPageRecords() {
       .then((snap) => {
         if (cancelled) return;
         const d = snap.data() as Record<string, unknown> | undefined;
+        setIsStudent(d?.isStudent !== undefined ? Boolean(d.isStudent) : true);
         const raw = typeof d?.enrollmentDate === "string" ? d.enrollmentDate : "";
         setEnrollmentDate(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null);
       })
       .catch(() => {
-        if (!cancelled) setEnrollmentDate(null);
+        if (!cancelled) {
+          setIsStudent(true);
+          setEnrollmentDate(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -228,7 +234,7 @@ export default function MyPageRecords() {
             <p className="text-xs text-muted-foreground">
               これまで書いたジャーナルを振り返り、自己分析やガクチカ作成に活かしましょう。
             </p>
-            {useFirestore && enrollmentDate == null && (
+            {useFirestore && isStudent && enrollmentDate == null && (
               <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
                 入学年月日を設定すると、各記録に「大学生活 ○日目」が表示されます（My Page のプロフィール編集から設定できます）。
               </p>
@@ -266,7 +272,7 @@ export default function MyPageRecords() {
                   const preview = getPreview(entry.content, 60);
                   const badgeLabel = entry.isPublic ? "公開" : "非公開";
                   const univDay =
-                    enrollmentDate != null
+                    isStudent && enrollmentDate != null
                       ? calculateUnivDay(new Date(entry.createdAt), enrollmentDate)
                       : null;
 

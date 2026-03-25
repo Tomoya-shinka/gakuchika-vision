@@ -14,6 +14,8 @@ type FeedJournalItem = {
   likes: string[];
   commentCount: number;
   universityDay?: number;
+  audioUrl?: string;
+  audioDurationSec?: number;
 };
 
 type AuthorProfile = {
@@ -104,7 +106,8 @@ export async function GET() {
       const likes = Array.isArray(rawLikes) ? (rawLikes as string[]).filter((x) => typeof x === "string") : [];
       const userId = String(data.userId ?? "");
       const content = String(data.content ?? "");
-      if (!userId || !content) return;
+      const audioUrl = typeof data.audioUrl === "string" && data.audioUrl ? data.audioUrl : undefined;
+      if (!userId || (!content && !audioUrl)) return;
       rows.push({
         id,
         userId,
@@ -115,6 +118,8 @@ export async function GET() {
         isPublic,
         likes,
         commentCount: 0,
+        audioUrl,
+        audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
       });
     };
 

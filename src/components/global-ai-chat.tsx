@@ -11,20 +11,19 @@ import {
   User,
   MessageSquareDot,
   ChevronDown,
+  BrainCircuit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { loadEntries, stripHtml } from "@/lib/journal";
 import { loadSelfAnalysisItems } from "@/lib/self-analysis";
-
-const QUICK_ACTIONS = [
-  "今週のジャーナルをまとめて",
-  "先月の振り返りを作って",
-  "私の強みや成功体験を教えて",
-  "ガクチカのネタになりそうな経験は？",
-  "目標を見つける手伝いをして",
-];
+import {
+  type ChatMode,
+  DEFAULT_QUICK_ACTIONS,
+  COACHING_QUICK_ACTIONS,
+  COACHING_WELCOME_MESSAGE,
+} from "@/lib/ai-prompts";
 
 type ContextData = {
   journals: { title?: string; contentPlain: string; createdAt: string }[];
@@ -48,6 +47,7 @@ function buildContext(): ContextData {
 
 export function GlobalAiChat() {
   const [isOpen, setIsOpen] = useState(false);
+  const [mode, setMode] = useState<ChatMode>("default");
   const [input, setInput] = useState("");
   const [contextData, setContextData] = useState<ContextData>({
     journals: [],
@@ -72,9 +72,9 @@ export function GlobalAiChat() {
     () =>
       new DefaultChatTransport({
         api: "/api/ai-chat",
-        body: { context: contextData },
+        body: { context: contextData, mode },
       }),
-    [contextData]
+    [contextData, mode]
   );
 
   const { messages, sendMessage, status, setMessages } = useChat({ transport });
@@ -107,6 +107,11 @@ export function GlobalAiChat() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleModeChange = (newMode: ChatMode) => {
+    setMode(newMode);
+    setMessages([]);
   };
 
   const handleQuickAction = (text: string) => {
@@ -155,11 +160,37 @@ export function GlobalAiChat() {
             <div>
               <p className="text-sm font-semibold">AIアシスタント</p>
               <p className="text-xs text-muted-foreground">
-                ガクチカ・就活をサポート
+                {mode === "coaching" ? "壁打ち・コーチングモード" : "ガクチカ・就活をサポート"}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {/* モードトグル */}
+            <div className="flex items-center gap-0.5 rounded-md border p-0.5 text-xs">
+              <button
+                onClick={() => handleModeChange("default")}
+                className={cn(
+                  "rounded px-2 py-1 transition-colors",
+                  mode === "default"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                通常
+              </button>
+              <button
+                onClick={() => handleModeChange("coaching")}
+                className={cn(
+                  "flex items-center gap-1 rounded px-2 py-1 transition-colors",
+                  mode === "coaching"
+                    ? "bg-violet-600 text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <BrainCircuit className="size-3" />
+                コーチング
+              </button>
+            </div>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
@@ -188,25 +219,35 @@ export function GlobalAiChat() {
             <div className="space-y-4">
               {/* Welcome message */}
               <div className="flex gap-3">
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Bot className="size-3.5" />
+                <div className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-full",
+                  mode === "coaching" ? "bg-violet-100 text-violet-600" : "bg-primary/10 text-primary"
+                )}>
+                  {mode === "coaching" ? <BrainCircuit className="size-3.5" /> : <Bot className="size-3.5" />}
                 </div>
                 <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-3 text-sm leading-relaxed">
-                  こんにちは！ガクチカビジョンのAIアシスタントです。ジャーナルや自己分析のデータをもとに、あなたの就活をサポートします。何でもお気軽にどうぞ！
+                  {mode === "coaching"
+                    ? COACHING_WELCOME_MESSAGE
+                    : "こんにちは！ガクチカビジョンのAIアシスタントです。ジャーナルや自己分析のデータをもとに、あなたの就活をサポートします。何でもお気軽にどうぞ！"}
                 </div>
               </div>
 
               {/* Quick action chips */}
               <div className="pl-10">
                 <p className="mb-2 text-xs text-muted-foreground">
-                  よく使われる質問：
+                  {mode === "coaching" ? "話したいテーマを選ぶ：" : "よく使われる質問："}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {QUICK_ACTIONS.map((action) => (
+                  {(mode === "coaching" ? COACHING_QUICK_ACTIONS : DEFAULT_QUICK_ACTIONS).map((action) => (
                     <button
                       key={action}
                       onClick={() => handleQuickAction(action)}
-                      className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary/10 active:bg-primary/15"
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                        mode === "coaching"
+                          ? "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300"
+                          : "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 active:bg-primary/15"
+                      )}
                     >
                       {action}
                     </button>
@@ -236,11 +277,15 @@ export function GlobalAiChat() {
                     "flex size-7 shrink-0 items-center justify-center rounded-full",
                     isUser
                       ? "bg-primary text-primary-foreground"
+                      : mode === "coaching"
+                      ? "bg-violet-100 text-violet-600"
                       : "bg-primary/10 text-primary"
                   )}
                 >
                   {isUser ? (
                     <User className="size-3.5" />
+                  ) : mode === "coaching" ? (
+                    <BrainCircuit className="size-3.5" />
                   ) : (
                     <Bot className="size-3.5" />
                   )}

@@ -1,0 +1,22 @@
+// ▼▼▼ ここから Firebase Console の Storage → ルール にコピペ ▼▼▼
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // 音声ジャーナル: 本人のみ書き込み可、認証済みユーザーは読み取り可
+    match /voice-journals/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+  }
+}
+
+// ▲▲▲ ここまでをコピー ▲▲▲
+//
+// 【手順】
+// 1. Firebase Storage を有効化（Firebase Console → Storage → 始める）
+// 2. Storage → ルール タブを開く
+// 3. 上の rules_version から } までを選択してコピー
+// 4. エディタの内容を削除し、貼り付け → 「公開」をクリック

@@ -1,6 +1,7 @@
 import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const rawProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const firebaseConfig = {
@@ -70,3 +71,4 @@ export function getAuthInstance() {
 }
 
 export const getDb = () => getFirestore(getFirebaseApp());
+export const getStorageInstance = () => getStorage(getFirebaseApp());

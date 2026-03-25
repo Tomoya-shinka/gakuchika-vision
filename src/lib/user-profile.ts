@@ -10,6 +10,10 @@ export interface UserProfile {
   graduationDate: string;
   /** 入学年月日 YYYY-MM-DD（大学生活○日目用） */
   enrollmentDate?: string;
+  /** 生年月日 YYYY-MM-DD（人生カウントダウン用） */
+  birthDate?: string;
+  /** 大学生フラグ（falseの場合、大学関連フィールドは非表示） */
+  isStudent?: boolean;
 }
 
 export const USER_PROFILE_STORAGE_KEY = "user_profile";
@@ -41,7 +45,10 @@ export function loadProfile(): UserProfile {
     const enrollmentDate = isValidDate(enrollmentDateRaw)
       ? enrollmentDateRaw
       : undefined;
-    return { name, university, status, graduationDate, enrollmentDate };
+    const birthDateRaw = String(parsed.birthDate ?? "").trim();
+    const birthDate = isValidDate(birthDateRaw) ? birthDateRaw : undefined;
+    const isStudent = parsed.isStudent !== undefined ? Boolean(parsed.isStudent) : true;
+    return { name, university, status, graduationDate, enrollmentDate, birthDate, isStudent };
   } catch {
     return { ...defaultProfile };
   }

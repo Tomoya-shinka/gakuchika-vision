@@ -13,6 +13,8 @@ export interface FirestoreUserProfile {
   isProfileCompleted: boolean;
   graduationDate?: string;
   enrollmentDate?: string;
+  birthDate?: string;
+  isStudent?: boolean;
 }
 
 const DEFAULT_GRADUATION = "2028-03-31";
@@ -38,6 +40,11 @@ export async function getUserProfile(
       typeof d?.enrollmentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.enrollmentDate)
         ? d.enrollmentDate
         : undefined,
+    birthDate:
+      typeof d?.birthDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.birthDate)
+        ? d.birthDate
+        : undefined,
+    isStudent: d?.isStudent !== undefined ? Boolean(d.isStudent) : true,
   };
 }
 
@@ -51,13 +58,17 @@ export async function saveUserProfile(
     isProfileCompleted: boolean;
     graduationDate?: string;
     enrollmentDate?: string;
+    birthDate?: string;
+    isStudent?: boolean;
   }
 ): Promise<void> {
   const ref = doc(db, "users", uid);
-  const payload: Record<string, unknown> = {
-    ...data,
-    updatedAt: new Date().toISOString(),
-  };
+  // undefined値をFirestoreに渡すとSDKがエラーになるため除外する
+  const payload: Record<string, unknown> = Object.fromEntries(
+    Object.entries({ ...data, updatedAt: new Date().toISOString() }).filter(
+      ([, v]) => v !== undefined
+    )
+  );
   await setDoc(ref, payload, { merge: true });
 }
 

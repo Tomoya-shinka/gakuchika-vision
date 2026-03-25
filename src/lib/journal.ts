@@ -7,6 +7,9 @@ export interface JournalEntry {
   category?: string;
   title?: string;
   visibility?: JournalVisibility;
+  audioUrl?: string;
+  audioDurationSec?: number;
+  imageUrls?: string[];
 }
 
 export const JOURNAL_STORAGE_KEY = "gakuchika-journal-entries";

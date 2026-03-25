@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   collection,
@@ -9,6 +9,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   addDoc,
@@ -47,8 +48,19 @@ import {
   MoreHorizontal,
   Trash2,
   Send,
+  Mail,
+  Play,
+  Pause,
 } from "lucide-react";
 import { useCommentNotifications } from "@/hooks/useCommentNotifications";
+
+type Conversation = {
+  id: string;
+  participants: string[];
+  participantNames: Record<string, string>;
+  lastMessage: string;
+  lastMessageAt: string;
+};
 
 type FeedJournal = {
   id: string;
@@ -60,7 +72,77 @@ type FeedJournal = {
   likes: string[];
   commentCount?: number;
   universityDay?: number;
+  audioUrl?: string;
+  audioDurationSec?: number;
 };
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function VoiceMessagePlayer({ src, durationSec }: { src: string; durationSec?: number }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentSec, setCurrentSec] = useState(0);
+  const [totalSec, setTotalSec] = useState(durationSec ?? 0);
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-sky-50 px-4 py-3 dark:bg-sky-900/20">
+      <audio
+        ref={audioRef}
+        src={src}
+        onLoadedMetadata={() => {
+          const dur = audioRef.current?.duration ?? 0;
+          if (isFinite(dur)) setTotalSec(dur);
+        }}
+        onTimeUpdate={() => setCurrentSec(audioRef.current?.currentTime ?? 0)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentSec(0);
+          if (audioRef.current) audioRef.current.currentTime = 0;
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          const audio = audioRef.current;
+          if (!audio) return;
+          if (isPlaying) {
+            audio.pause();
+            setIsPlaying(false);
+          } else {
+            void audio.play();
+            setIsPlaying(true);
+          }
+        }}
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white transition-colors hover:bg-sky-600 active:scale-95"
+      >
+        {isPlaying ? <Pause className="size-4" /> : <Play className="size-4 translate-x-0.5" />}
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <input
+          type="range"
+          min={0}
+          max={totalSec || 1}
+          step={0.1}
+          value={currentSec}
+          onChange={(e) => {
+            const t = Number(e.target.value);
+            setCurrentSec(t);
+            if (audioRef.current) audioRef.current.currentTime = t;
+          }}
+          className="h-1.5 w-full cursor-pointer accent-sky-500"
+        />
+        <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
+          <span>{formatDuration(Math.floor(currentSec))}</span>
+          <span>{formatDuration(Math.floor(totalSec))}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Comment = {
   id: string;
@@ -139,6 +221,9 @@ function buildSubtitle(p: AuthorProfile | null): string {
 export default function FeedPage() {
   const { user } = useAuth();
   const { markAllRead } = useCommentNotifications();
+  const [activeTab, setActiveTab] = useState<"journal" | "dm">("journal");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [dmLoading, setDmLoading] = useState(true);
   const [items, setItems] = useState<FeedJournal[]>([]);
   const [authors, setAuthors] = useState<Record<string, AuthorProfile | null>>(
     {}
@@ -456,6 +541,39 @@ export default function FeedPage() {
     markAllRead();
   }, [markAllRead]);
 
+  // DMの会話一覧をリアルタイムで取得
+  useEffect(() => {
+    if (!user?.uid) {
+      setDmLoading(false);
+      return;
+    }
+    const db = getDb();
+    const q = query(
+      collection(db, "conversations"),
+      where("participants", "array-contains", user.uid),
+      orderBy("lastMessageAt", "desc")
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: Conversation[] = snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            id: d.id,
+            participants: (data.participants as string[]) ?? [],
+            participantNames: (data.participantNames as Record<string, string>) ?? {},
+            lastMessage: String(data.lastMessage ?? ""),
+            lastMessageAt: toIso(data.lastMessageAt),
+          };
+        });
+        setConversations(list);
+        setDmLoading(false);
+      },
+      () => setDmLoading(false)
+    );
+    return unsub;
+  }, [user?.uid]);
+
   useEffect(() => {
     if (expandedCommentId && !comments[expandedCommentId]) {
       loadComments(expandedCommentId);
@@ -463,18 +581,98 @@ export default function FeedPage() {
   }, [expandedCommentId, comments, loadComments]);
 
   const empty = !loading && !error && items.length === 0;
+  const hasPermissionError = !!error && /missing or insufficient permissions/i.test(error);
 
   const COMMENTS_PREVIEW = 3;
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-border bg-background/90 px-3 backdrop-blur-sm sm:h-14 sm:px-4">
-        <h1 className="text-base font-semibold sm:text-lg">
-          みんなのジャーナル
-        </h1>
+      <header className="sticky top-0 z-20 flex shrink-0 flex-col border-b border-border bg-background/90 backdrop-blur-sm">
+        <div className="flex h-12 items-center px-3 sm:h-14 sm:px-4">
+          <h1 className="text-base font-semibold sm:text-lg">フィード</h1>
+        </div>
+        <div className="flex">
+          <button
+            onClick={() => setActiveTab("journal")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+              activeTab === "journal"
+                ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <MessageCircle className="size-4" />
+            みんなのジャーナル
+          </button>
+          <button
+            onClick={() => setActiveTab("dm")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+              activeTab === "dm"
+                ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Mail className="size-4" />
+            ダイレクトメッセージ
+          </button>
+        </div>
       </header>
 
       <main className="flex flex-1 overflow-auto bg-gray-50 dark:bg-slate-950/60">
+        {/* DMタブ */}
+        {activeTab === "dm" && (
+          <div className="mx-auto w-full max-w-2xl">
+            {dmLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-sm text-muted-foreground">読み込み中...</div>
+              </div>
+            )}
+            {!dmLoading && !user && (
+              <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+                <Mail className="size-10 opacity-30" />
+                <p className="text-sm">ログインするとDMが確認できます</p>
+              </div>
+            )}
+            {!dmLoading && user && conversations.length === 0 && (
+              <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+                <Mail className="size-10 opacity-30" />
+                <p className="text-sm">まだメッセージがありません</p>
+                <p className="text-xs">ユーザーのプロフィールを開いてDMを送りましょう</p>
+              </div>
+            )}
+            {conversations.map((conv) => {
+              const otherId = conv.participants.find((p) => p !== user?.uid) ?? "";
+              const otherName = conv.participantNames[otherId] ?? "ユーザー";
+              const initial = otherName.charAt(0).toUpperCase();
+              return (
+                <Link
+                  key={conv.id}
+                  href={`/messages/${conv.id}`}
+                  className="flex items-center gap-3 border-b border-border bg-background px-4 py-4 transition-colors hover:bg-muted/50 sm:px-6"
+                >
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-slate-200 text-base font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                    {initial}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-foreground">{otherName}</p>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {formatDate(conv.lastMessageAt)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {conv.lastMessage || "メッセージを開始しましょう"}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ジャーナルタブ */}
+        {activeTab === "journal" && (
         <div className="min-h-full w-full px-0 py-4 sm:px-0 sm:py-6">
           <div className="mx-auto flex w-full max-w-[600px] flex-col gap-4 px-4 sm:px-0">
             {loading && (
@@ -547,7 +745,7 @@ export default function FeedPage() {
                     </Button>
                   </div>
                 )}
-                {/missing or insufficient permissions/i.test(error) && (
+                {hasPermissionError && (
                   <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <p>Firestore のルールが未反映の可能性があります。</p>
                     <ol className="list-inside list-decimal space-y-1">
@@ -696,23 +894,29 @@ export default function FeedPage() {
                       </p>
                     )}
 
-                    <p
-                      className={cn(
-                        "whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800 dark:text-slate-200",
-                        !isExpanded && "line-clamp-4"
-                      )}
-                    >
-                      {plain}
-                    </p>
+                    {item.audioUrl ? (
+                      <VoiceMessagePlayer src={item.audioUrl} durationSec={item.audioDurationSec} />
+                    ) : (
+                      <>
+                        <p
+                          className={cn(
+                            "whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800 dark:text-slate-200",
+                            !isExpanded && "line-clamp-4"
+                          )}
+                        >
+                          {plain}
+                        </p>
 
-                    {showToggle && (
-                      <button
-                        type="button"
-                        onClick={() => toggleExpanded(item.id)}
-                        className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
-                      >
-                        {isExpanded ? "閉じる" : "もっと見る"}
-                      </button>
+                        {showToggle && (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(item.id)}
+                            className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+                          >
+                            {isExpanded ? "閉じる" : "もっと見る"}
+                          </button>
+                        )}
+                      </>
                     )}
 
                     <div className="mt-4 flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
@@ -850,6 +1054,7 @@ export default function FeedPage() {
             })}
           </div>
         </div>
+        )}
       </main>
 
       <AlertDialog

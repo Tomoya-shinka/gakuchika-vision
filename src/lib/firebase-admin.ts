@@ -28,6 +28,12 @@ function loadKeyFromPath(keyPath: string): admin.ServiceAccount {
  * - FIREBASE_SERVICE_ACCOUNT_JSON … JSON を 1 行にした文字列
  * - GOOGLE_APPLICATION_CREDENTIALS … 鍵ファイルのパス
  */
+export function getAdminStorage(): admin.storage.Storage {
+  // getAdminDb() でアプリを初期化してから Storage を返す
+  getAdminDb();
+  return admin.storage();
+}
+
 export function getAdminDb(): admin.firestore.Firestore {
   if (admin.apps.length > 0) {
     return admin.app().firestore();
@@ -36,13 +42,13 @@ export function getAdminDb(): admin.firestore.Firestore {
     const keyPath = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH;
     if (keyPath && typeof keyPath === "string") {
       const key = loadKeyFromPath(keyPath.trim());
-      app = admin.initializeApp({ credential: admin.credential.cert(key) });
+      app = admin.initializeApp({ credential: admin.credential.cert(key), storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET });
     } else {
       const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
       if (json && typeof json === "string") {
         try {
           const key = JSON.parse(json) as admin.ServiceAccount;
-          app = admin.initializeApp({ credential: admin.credential.cert(key) });
+          app = admin.initializeApp({ credential: admin.credential.cert(key), storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET });
         } catch (e) {
           console.error("[firebase-admin] FIREBASE_SERVICE_ACCOUNT_JSON のパースに失敗:", e);
           throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON が不正です");
@@ -50,6 +56,7 @@ export function getAdminDb(): admin.firestore.Firestore {
       } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
         app = admin.initializeApp({
           credential: admin.credential.applicationDefault(),
+          storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
         });
       } else {
         throw new Error(
