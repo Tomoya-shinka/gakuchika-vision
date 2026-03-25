@@ -101,7 +101,7 @@ type GoalsSlide = {
   empty: string;
 };
 
-/** 目標カルーセル（HomePage の外で定義し、毎秒の再レンダーで remount されないようにする） */
+/** 目標カルーセル（無限ループ：末尾に先頭クローンを追加し常に右スクロール） */
 function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: boolean }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
 
@@ -113,17 +113,55 @@ function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: bo
       window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (prefersReduced) return;
 
+    // 実スライド数 + 先頭クローン1枚 = totalItems
+    const totalItems = slides.length + 1;
+
     const id = window.setInterval(() => {
-      // gap なしのとき: itemWidth = el.scrollWidth / slides.length
-      const itemWidth = el.scrollWidth / slides.length;
+      const itemWidth = el.scrollWidth / totalItems;
       if (!itemWidth) return;
       const idx = Math.round(el.scrollLeft / itemWidth);
-      const next = (idx + 1) % slides.length;
+      const next = idx + 1;
+
       el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
+
+      // クローン（最後）まで来たらアニメーション完了後に先頭へ瞬時ジャンプ
+      if (next === slides.length) {
+        setTimeout(() => {
+          el.scrollLeft = 0;
+        }, 550);
+      }
     }, 4500);
 
     return () => window.clearInterval(id);
   }, [slides.length]);
+
+  // 実スライド + 先頭スライドのクローン
+  const allSlides = slides[0] ? [...slides, slides[0]] : slides;
+
+  function SlideCard({ s, keyStr }: { s: GoalsSlide; keyStr: string }) {
+    const Icon = s.icon;
+    const text = s.content.length > 0 ? s.content : s.empty;
+    const isEmpty = s.content.length === 0;
+    return (
+      <div key={keyStr} className="w-full shrink-0 snap-center">
+        <Card className={cn("h-full gap-1 py-2 transition-shadow hover:shadow-md", compact ? "" : "sm:gap-3 sm:py-4")}>
+          <CardHeader className={cn("flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1", compact ? "" : "sm:gap-2 sm:pb-2 sm:pr-4")}>
+            <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
+              <Icon className="size-4 text-sky-600 dark:text-sky-400 sm:size-5" />
+            </div>
+            <CardTitle className={cn("truncate font-medium", compact ? "text-[10px]" : "text-[10px] sm:text-sm")}>
+              {s.title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className={cn("p-2 pt-0", compact ? "" : "sm:p-4 sm:pt-0")}>
+            <p className={cn("line-clamp-3 font-semibold leading-relaxed", compact ? "text-sm" : "text-sm sm:text-base", isEmpty && "text-muted-foreground font-normal")}>
+              {text}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className={compact ? "mb-2" : "mb-3"}>
@@ -131,30 +169,9 @@ function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: bo
         ref={trackRef}
         className="flex overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {slides.map((s) => {
-          const Icon = s.icon;
-          const text = s.content.length > 0 ? s.content : s.empty;
-          const isEmpty = s.content.length === 0;
-          return (
-            <div key={s.key} className="w-full shrink-0 snap-center">
-              <Card className={cn("h-full gap-1 py-2 transition-shadow hover:shadow-md", compact ? "" : "sm:gap-3 sm:py-4")}>
-                <CardHeader className={cn("flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1", compact ? "" : "sm:gap-2 sm:pb-2 sm:pr-4")}>
-                  <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
-                    <Icon className="size-4 text-sky-600 dark:text-sky-400 sm:size-5" />
-                  </div>
-                  <CardTitle className={cn("truncate font-medium", compact ? "text-[10px]" : "text-[10px] sm:text-sm")}>
-                    {s.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className={cn("p-2 pt-0", compact ? "" : "sm:p-4 sm:pt-0")}>
-                  <p className={cn("line-clamp-3 font-semibold leading-relaxed", compact ? "text-sm" : "text-sm sm:text-base", isEmpty && "text-muted-foreground font-normal")}>
-                    {text}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          );
-        })}
+        {allSlides.map((s, i) => (
+          <SlideCard key={i === slides.length ? `${s.key}-clone` : s.key} s={s} keyStr={i === slides.length ? `${s.key}-clone` : s.key} />
+        ))}
       </div>
     </div>
   );
