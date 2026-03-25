@@ -468,17 +468,17 @@ export default function HomePage() {
               {currentSlide === 0 ? "人生" : "卒業"}
             </button>
             <div className="relative">
-              <div className={`flex flex-col items-center p-4 text-center sm:p-6 transition-opacity duration-500 ${currentSlide === 0 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
+              <div className={`flex flex-col items-center p-4 text-center sm:p-5 transition-opacity duration-500 ${currentSlide === 0 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
                 <p className="mb-2 text-sm text-muted-foreground sm:text-base">卒業まで、あと</p>
-                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
-                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{countdown.days}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{pad2(countdown.hours)}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{pad2(countdown.minutes)}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{pad2(countdown.seconds)}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
+                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{countdown.days}</span>
+                  <span className="text-lg text-muted-foreground">日</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.hours)}</span>
+                  <span className="text-lg text-muted-foreground">時間</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.minutes)}</span>
+                  <span className="text-lg text-muted-foreground">分</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.seconds)}</span>
+                  <span className="text-lg text-muted-foreground">秒</span>
                 </div>
                 <div className="w-full max-w-md space-y-1.5">
                   <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
@@ -488,19 +488,19 @@ export default function HomePage() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">卒業予定：{(graduationDate || DEFAULT_GRADUATION_DATE).replace(/-/g, "/")}</p>
               </div>
-              <div className={`flex flex-col items-center p-4 text-center sm:p-6 transition-opacity duration-500 ${currentSlide === 1 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
+              <div className={`flex flex-col items-center p-4 text-center sm:p-5 transition-opacity duration-500 ${currentSlide === 1 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
                 <p className="mb-2 text-sm text-muted-foreground sm:text-base">人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）</p>
                 {birthDate ? (
                   <>
-                    <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
-                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{lifeCountdown.days}</span>
-                      <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
-                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.hours)}</span>
-                      <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
-                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.minutes)}</span>
-                      <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
-                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.seconds)}</span>
-                      <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
+                    <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{lifeCountdown.days}</span>
+                      <span className="text-lg text-muted-foreground">日</span>
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.hours)}</span>
+                      <span className="text-lg text-muted-foreground">時間</span>
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.minutes)}</span>
+                      <span className="text-lg text-muted-foreground">分</span>
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.seconds)}</span>
+                      <span className="text-lg text-muted-foreground">秒</span>
                     </div>
                     <div className="w-full max-w-md space-y-1.5">
                       <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
@@ -520,19 +520,19 @@ export default function HomePage() {
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center p-4 text-center sm:p-6">
+          <div className="flex flex-col items-center p-4 text-center sm:p-5">
             <p className="mb-2 text-sm text-muted-foreground sm:text-base">人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）</p>
             {birthDate ? (
               <>
-                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{lifeCountdown.days}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.hours)}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.minutes)}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.seconds)}</span>
-                  <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
+                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{lifeCountdown.days}</span>
+                  <span className="text-lg text-muted-foreground">日</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.hours)}</span>
+                  <span className="text-lg text-muted-foreground">時間</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.minutes)}</span>
+                  <span className="text-lg text-muted-foreground">分</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.seconds)}</span>
+                  <span className="text-lg text-muted-foreground">秒</span>
                 </div>
                 <div className="w-full max-w-md space-y-1.5">
                   <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
