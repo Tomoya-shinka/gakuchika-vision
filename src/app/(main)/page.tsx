@@ -453,338 +453,242 @@ export default function HomePage() {
     );
   }
 
+  /** カウントダウンカードの中身（モバイル・PC で共用） */
+  function CountdownContent({ className }: { className?: string }) {
+    return (
+      <section className={cn("relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm backdrop-blur-sm", className)}>
+        {isStudent ? (
+          <>
+            <button
+              onClick={() => setCurrentSlide((prev) => (prev === 0 ? 1 : 0))}
+              className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-border bg-background/80 px-2.5 py-1 text-[10px] text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground sm:right-4 sm:top-4 sm:text-xs"
+              title={currentSlide === 0 ? "人生の残り時間を見る" : "卒業カウントダウンを見る"}
+            >
+              <ArrowLeftRight className="size-3" />
+              {currentSlide === 0 ? "人生" : "卒業"}
+            </button>
+            <div className="relative">
+              <div className={`flex flex-col items-center p-4 text-center sm:p-6 transition-opacity duration-500 ${currentSlide === 0 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
+                <p className="mb-2 text-sm text-muted-foreground sm:text-base">卒業まで、あと</p>
+                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{countdown.days}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{pad2(countdown.hours)}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{pad2(countdown.minutes)}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">{pad2(countdown.seconds)}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
+                </div>
+                <div className="w-full max-w-md space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
+                    <span>大学生活の進捗</span><span>{Math.round(progressPercent)}%</span>
+                  </div>
+                  <Progress value={progressPercent} className="h-2 sm:h-3" />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">卒業予定：{(graduationDate || DEFAULT_GRADUATION_DATE).replace(/-/g, "/")}</p>
+              </div>
+              <div className={`flex flex-col items-center p-4 text-center sm:p-6 transition-opacity duration-500 ${currentSlide === 1 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
+                <p className="mb-2 text-sm text-muted-foreground sm:text-base">人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）</p>
+                {birthDate ? (
+                  <>
+                    <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{lifeCountdown.days}</span>
+                      <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.hours)}</span>
+                      <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.minutes)}</span>
+                      <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
+                      <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.seconds)}</span>
+                      <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
+                    </div>
+                    <div className="w-full max-w-md space-y-1.5">
+                      <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
+                        <span>人生の進捗</span><span>{Math.round(lifeProgress)}%</span>
+                      </div>
+                      <Progress value={lifeProgress} className="h-2 sm:h-3 [&>div]:bg-amber-500" />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">生年月日：{birthDate.replace(/-/g, "/")}</p>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 py-4">
+                    <p className="text-sm text-muted-foreground">生年月日を設定すると表示されます</p>
+                    <a href="/mypage" className="text-xs text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400">My Page で設定する →</a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center p-4 text-center sm:p-6">
+            <p className="mb-2 text-sm text-muted-foreground sm:text-base">人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）</p>
+            {birthDate ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{lifeCountdown.days}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.hours)}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.minutes)}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
+                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">{pad2(lifeCountdown.seconds)}</span>
+                  <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
+                </div>
+                <div className="w-full max-w-md space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
+                    <span>人生の進捗</span><span>{Math.round(lifeProgress)}%</span>
+                  </div>
+                  <Progress value={lifeProgress} className="h-2 sm:h-3 [&>div]:bg-amber-500" />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">生年月日：{birthDate.replace(/-/g, "/")}</p>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <p className="text-sm text-muted-foreground">生年月日を設定すると表示されます</p>
+                <a href="/mypage" className="text-xs text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400">My Page で設定する →</a>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  /** 月ナビ付きカレンダーパネル */
+  function CalendarPanel() {
+    return (
+      <>
+        <GoalsCarousel slides={goalsSlides} />
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <button onClick={() => setMonthOffset((o) => o - 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="前の月">
+            <ChevronLeft className="size-4" />
+          </button>
+          <p className="text-xs font-semibold text-foreground sm:text-sm">{monthLabel}</p>
+          <button onClick={() => setMonthOffset((o) => o + 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="次の月">
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <CalendarGrid />
+      </>
+    );
+  }
+
+  const bgGradient = "bg-gradient-to-b from-slate-50/80 via-white to-sky-50/30 dark:from-slate-950/50 dark:via-background dark:to-sky-950/20";
+
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col overflow-hidden">
       <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
         <h1 className="text-base font-semibold sm:text-lg">ホーム</h1>
       </header>
-      <main className="flex flex-1 overflow-auto">
-        <div className="relative min-h-full w-full bg-gradient-to-b from-slate-50/80 via-white to-sky-50/30 dark:from-slate-950/50 dark:via-background dark:to-sky-950/20">
-          <div className="mx-auto max-w-4xl space-y-3 px-3 pt-4 pb-32 sm:space-y-5 sm:px-6 sm:py-6">
-            {/* カウントダウン */}
-            <section className="relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm backdrop-blur-sm">
-              {isStudent ? (
-                <>
-                  {/* 切り替えボタン（大学生のみ） */}
-                  <button
-                    onClick={() => setCurrentSlide((prev) => (prev === 0 ? 1 : 0))}
-                    className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-border bg-background/80 px-2.5 py-1 text-[10px] text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground sm:right-4 sm:top-4 sm:text-xs"
-                    title={currentSlide === 0 ? "人生の残り時間を見る" : "卒業カウントダウンを見る"}
-                  >
-                    <ArrowLeftRight className="size-3" />
-                    {currentSlide === 0 ? "人生" : "卒業"}
-                  </button>
-                  <div className="relative">
-                    {/* スライド1: 卒業まで */}
-                    <div className={`flex flex-col items-center p-4 text-center sm:p-6 transition-opacity duration-500 ${currentSlide === 0 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
-                      <p className="mb-2 text-sm text-muted-foreground sm:text-base">
-                        卒業まで、あと
-                      </p>
-                      <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
-                        <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">
-                          {countdown.days}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
-                        <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">
-                          {pad2(countdown.hours)}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
-                        <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">
-                          {pad2(countdown.minutes)}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
-                        <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400 sm:text-5xl md:text-6xl">
-                          {pad2(countdown.seconds)}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
-                      </div>
-                      <div className="w-full max-w-md space-y-1.5">
-                        <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
-                          <span>大学生活の進捗</span>
-                          <span>{Math.round(progressPercent)}%</span>
-                        </div>
-                        <Progress value={progressPercent} className="h-2 sm:h-3" />
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        卒業予定：{(graduationDate || DEFAULT_GRADUATION_DATE).replace(/-/g, "/")}
-                      </p>
-                    </div>
 
-                    {/* スライド2: 人生の残り時間 */}
-                    <div className={`flex flex-col items-center p-4 text-center sm:p-6 transition-opacity duration-500 ${currentSlide === 1 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
-                      <p className="mb-2 text-sm text-muted-foreground sm:text-base">
-                        人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）
-                      </p>
-                      {birthDate ? (
-                        <>
-                          <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
-                            <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                              {lifeCountdown.days}
-                            </span>
-                            <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
-                            <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                              {pad2(lifeCountdown.hours)}
-                            </span>
-                            <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
-                            <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                              {pad2(lifeCountdown.minutes)}
-                            </span>
-                            <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
-                            <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                              {pad2(lifeCountdown.seconds)}
-                            </span>
-                            <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
-                          </div>
-                          <div className="w-full max-w-md space-y-1.5">
-                            <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
-                              <span>人生の進捗</span>
-                              <span>{Math.round(lifeProgress)}%</span>
-                            </div>
-                            <Progress value={lifeProgress} className="h-2 sm:h-3 [&>div]:bg-amber-500" />
-                          </div>
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            生年月日：{birthDate.replace(/-/g, "/")}
-                          </p>
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center gap-3 py-4">
-                          <p className="text-sm text-muted-foreground">
-                            生年月日を設定すると表示されます
-                          </p>
-                          <a
-                            href="/mypage"
-                            className="text-xs text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400"
-                          >
-                            My Page で設定する →
-                          </a>
-                        </div>
-                      )}
-                    </div>
+      {/* ===== PC レイアウト（スクロールなし、高さを埋める）===== */}
+      <div className={cn("hidden sm:flex sm:flex-1 sm:overflow-hidden", bgGradient)}>
+        <div className="flex flex-1 gap-3 overflow-hidden p-4">
+          {/* 左列: カウントダウン + ボタン */}
+          <div className="flex w-[42%] shrink-0 flex-col gap-3 min-h-0">
+            <CountdownContent className="flex-1 flex flex-col justify-center" />
+            <Button size="lg" className="h-12 w-full shrink-0 gap-2 px-6 text-sm" asChild>
+              <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
+            </Button>
+          </div>
+          {/* 右列: 統計3カード横並び + カレンダー */}
+          <div className="flex flex-1 min-w-0 flex-col gap-3 overflow-hidden">
+            {/* 統計 3-col */}
+            <div className="grid shrink-0 grid-cols-3 gap-3">
+              <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
+                  <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40">
+                    <FileText className="size-4 text-sky-600 dark:text-sky-400" />
                   </div>
-                </>
-              ) : (
-                /* 大学生でない場合：人生カウントダウンのみ表示 */
-                <div className="flex flex-col items-center p-4 text-center sm:p-6">
-                  <p className="mb-2 text-sm text-muted-foreground sm:text-base">
-                    人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）
-                  </p>
-                  {birthDate ? (
-                    <>
-                      <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:gap-x-3">
-                        <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                          {lifeCountdown.days}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">日</span>
-                        <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                          {pad2(lifeCountdown.hours)}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">時間</span>
-                        <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                          {pad2(lifeCountdown.minutes)}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">分</span>
-                        <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400 sm:text-5xl md:text-6xl">
-                          {pad2(lifeCountdown.seconds)}
-                        </span>
-                        <span className="text-lg text-muted-foreground sm:text-2xl">秒</span>
-                      </div>
-                      <div className="w-full max-w-md space-y-1.5">
-                        <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
-                          <span>人生の進捗</span>
-                          <span>{Math.round(lifeProgress)}%</span>
-                        </div>
-                        <Progress value={lifeProgress} className="h-2 sm:h-3 [&>div]:bg-amber-500" />
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        生年月日：{birthDate.replace(/-/g, "/")}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 py-4">
-                      <p className="text-sm text-muted-foreground">
-                        生年月日を設定すると表示されます
-                      </p>
-                      <a
-                        href="/mypage"
-                        className="text-xs text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400"
-                      >
-                        My Page で設定する →
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-
-            {/* 今日のジャーナルを書く */}
-            <section className="w-full">
-              <Button
-                size="lg"
-                className="h-12 w-full min-w-0 gap-2 px-6 text-sm sm:h-16 sm:px-10 sm:text-base"
-                asChild
-              >
-                <Link href="/journal">
-                  <BookOpen className="size-4" />
-                  今日のジャーナルを書く
-                </Link>
-              </Button>
-            </section>
-
-            {/* スマホ時レイアウト（参考画像） */}
-            <section className="sm:hidden space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Card className="gap-1 py-2 transition-shadow hover:shadow-md sm:gap-6 sm:py-4">
-                  <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1 sm:gap-3 sm:pb-2 sm:pr-6">
-                    <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
-                      <FileText className="size-4 text-sky-600 dark:text-sky-400 sm:size-5" />
-                    </div>
-                    <CardTitle className="truncate text-[10px] font-medium sm:text-base">
-                      総ジャーナル数
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
-                    <p className="text-base font-bold sm:text-2xl">{stats.totalCount}</p>
-                    <CardDescription className="hidden text-xs sm:block">
-                      これまで書いた日記の合計
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-
-                <Card className="gap-1 py-2 transition-shadow hover:shadow-md sm:gap-6 sm:py-4">
-                  <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1 sm:gap-3 sm:pb-2 sm:pr-6">
-                    <div className="shrink-0 rounded-md bg-amber-100 p-1 dark:bg-amber-900/40 sm:rounded-lg sm:p-2">
-                      <Flame className="size-4 text-amber-600 dark:text-amber-400 sm:size-5" />
-                    </div>
-                    <CardTitle className="truncate text-[10px] font-medium sm:text-base">
-                      継続日数
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
-                    <p className="text-base font-bold sm:text-2xl">{stats.streakDays}</p>
-                    <CardDescription className="hidden text-xs sm:block">
-                      連続で書いている日数
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
-                <CardContent className="p-3">
-                  <GoalsCarousel slides={goalsSlides} compact />
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => setMonthOffset((o) => o - 1)}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label="前の月"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </button>
-                    <p className="text-xs font-semibold text-foreground">{monthLabel}</p>
-                    <button
-                      onClick={() => setMonthOffset((o) => o + 1)}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label="次の月"
-                    >
-                      <ChevronRight className="size-4" />
-                    </button>
-                  </div>
-
-                  <CalendarGrid />
+                  <CardTitle className="truncate text-xs font-medium">総ジャーナル数</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 pt-0">
+                  <p className="text-xl font-bold">{stats.totalCount}</p>
+                  <CardDescription className="text-xs">これまで書いた日記の合計</CardDescription>
                 </CardContent>
               </Card>
-            </section>
+              <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
+                  <div className="shrink-0 rounded-md bg-violet-100 p-1 dark:bg-violet-900/40">
+                    <CalendarDays className="size-4 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <CardTitle className="truncate text-xs font-medium">今月のジャーナル数</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 pt-0">
+                  <p className="text-xl font-bold">{monthlyJournalCount}</p>
+                  <CardDescription className="text-xs">今月書いた日記の合計</CardDescription>
+                </CardContent>
+              </Card>
+              <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
+                  <div className="shrink-0 rounded-md bg-amber-100 p-1 dark:bg-amber-900/40">
+                    <Flame className="size-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <CardTitle className="truncate text-xs font-medium">継続日数</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 pt-0">
+                  <p className="text-xl font-bold">{stats.streakDays}</p>
+                  <CardDescription className="text-xs">連続で書いている日数</CardDescription>
+                </CardContent>
+              </Card>
+            </div>
+            {/* 目標＋カレンダー */}
+            <Card className="flex-1 min-h-0 overflow-auto border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
+              <CardContent className="p-3">
+                <CalendarPanel />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
 
-            {/* sm以上（PC/タブレット）レイアウト */}
-            <section className="hidden sm:grid grid-cols-1 gap-3 sm:grid-cols-[240px_1fr] sm:items-stretch sm:gap-4">
-              <div className="flex h-full flex-col gap-2 sm:gap-3">
-                {/* 積み上げ統計カード */}
-                <Card className="flex-1 gap-1 py-2 transition-shadow hover:shadow-md sm:gap-6 sm:py-4">
-                  <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1 sm:gap-3 sm:pb-2 sm:pr-6">
-                    <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
-                      <FileText className="size-4 text-sky-600 dark:text-sky-400 sm:size-5" />
-                    </div>
-                    <CardTitle className="truncate text-[10px] font-medium sm:text-base">
-                      総ジャーナル数
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
-                    <p className="text-base font-bold sm:text-2xl">
-                      {stats.totalCount}
-                    </p>
-                    <CardDescription className="hidden text-xs sm:block">
-                      これまで書いた日記の合計
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-                <Card className="flex-1 gap-1 py-2 transition-shadow hover:shadow-md sm:gap-6 sm:py-4">
-                  <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1 sm:gap-3 sm:pb-2 sm:pr-6">
-                    <div className="shrink-0 rounded-md bg-violet-100 p-1 dark:bg-violet-900/40 sm:rounded-lg sm:p-2">
-                      <CalendarDays className="size-4 text-violet-600 dark:text-violet-400 sm:size-5" />
-                    </div>
-                    <CardTitle className="truncate text-[10px] font-medium sm:text-base">
-                      今月のジャーナル数
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
-                    <p className="text-base font-bold sm:text-2xl">
-                      {monthlyJournalCount}
-                    </p>
-                    <CardDescription className="hidden text-xs sm:block">
-                      今月書いた日記の合計
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-                <Card className="flex-1 gap-1 py-2 transition-shadow hover:shadow-md sm:gap-6 sm:py-4">
-                  <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1 sm:gap-3 sm:pb-2 sm:pr-6">
-                    <div className="shrink-0 rounded-md bg-amber-100 p-1 dark:bg-amber-900/40 sm:rounded-lg sm:p-2">
-                      <Flame className="size-4 text-amber-600 dark:text-amber-400 sm:size-5" />
-                    </div>
-                    <CardTitle className="truncate text-[10px] font-medium sm:text-base">
-                      継続日数
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
-                    <p className="text-base font-bold sm:text-2xl">
-                      {stats.streakDays}
-                    </p>
-                    <CardDescription className="hidden text-xs sm:block">
-                      連続で書いている日数
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              </div>
+      {/* ===== モバイルレイアウト（スクロールあり）===== */}
+      <main className={cn("flex flex-1 overflow-auto sm:hidden", bgGradient)}>
+        <div className="w-full">
+          <div className="space-y-3 px-3 pt-4 pb-32">
+            {/* カウントダウン */}
+            <CountdownContent />
 
-              {/* 月間カレンダー */}
-              <div className="flex w-full flex-col sm:max-w-[640px] sm:justify-self-end">
-                <Card className="flex-1 overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
-                  <CardContent className="p-3 sm:p-4">
-                    <GoalsCarousel slides={goalsSlides} />
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => setMonthOffset((o) => o - 1)}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        aria-label="前の月"
-                      >
-                        <ChevronLeft className="size-4" />
-                      </button>
-                      <p className="text-xs font-semibold text-foreground sm:text-sm">
-                        {monthLabel}
-                      </p>
-                      <button
-                        onClick={() => setMonthOffset((o) => o + 1)}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        aria-label="次の月"
-                      >
-                        <ChevronRight className="size-4" />
-                      </button>
-                    </div>
+            {/* 今日のジャーナルを書く */}
+            <Button size="lg" className="h-12 w-full gap-2 px-6 text-sm" asChild>
+              <Link href="/journal">
+                <BookOpen className="size-4" />
+                今日のジャーナルを書く
+              </Link>
+            </Button>
 
-                    <CalendarGrid />
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
+            {/* 統計 2-col */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
+                  <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40">
+                    <FileText className="size-4 text-sky-600 dark:text-sky-400" />
+                  </div>
+                  <CardTitle className="truncate text-[10px] font-medium">総ジャーナル数</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 pt-0">
+                  <p className="text-base font-bold">{stats.totalCount}</p>
+                </CardContent>
+              </Card>
+              <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
+                  <div className="shrink-0 rounded-md bg-amber-100 p-1 dark:bg-amber-900/40">
+                    <Flame className="size-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <CardTitle className="truncate text-[10px] font-medium">継続日数</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2 pt-0">
+                  <p className="text-base font-bold">{stats.streakDays}</p>
+                </CardContent>
+              </Card>
+            </div>
 
+            {/* 目標カルーセル＋カレンダー */}
+            <Card className="overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
+              <CardContent className="p-3">
+                <CalendarPanel />
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
