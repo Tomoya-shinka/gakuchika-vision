@@ -152,8 +152,19 @@ function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: bo
     const Icon = s.icon;
     const text = s.content.length > 0 ? s.content : s.empty;
     const isEmpty = s.content.length === 0;
+    // スクロールドラッグとクリックを区別するため pointerdown 位置を記録
+    const pointerStartX = useRef(0);
     return (
-      <div key={keyStr} className="w-full shrink-0 snap-center">
+      <div
+        key={keyStr}
+        className="w-full shrink-0 snap-center cursor-pointer"
+        onPointerDown={(e) => { pointerStartX.current = e.clientX; }}
+        onPointerUp={(e) => {
+          if (Math.abs(e.clientX - pointerStartX.current) < 8) {
+            window.location.href = "/mypage/goals";
+          }
+        }}
+      >
         <Card className={cn("h-full gap-1 py-2 transition-shadow hover:shadow-md", compact ? "" : "sm:gap-3 sm:py-4")}>
           <CardHeader className={cn("flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1", compact ? "" : "sm:gap-2 sm:pb-2 sm:pr-4")}>
             <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
