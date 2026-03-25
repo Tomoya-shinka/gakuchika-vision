@@ -125,9 +125,17 @@ function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: bo
       el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
 
       // クローン（最後）まで来たらアニメーション完了後に先頭へ瞬時ジャンプ
+      // snap-mandatory が scrollLeft 代入を再アニメーションするのを防ぐため
+      // ジャンプ前後で scrollSnapType を一時無効にする
       if (next === slides.length) {
         setTimeout(() => {
+          el.style.scrollSnapType = "none";
           el.scrollLeft = 0;
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              el.style.scrollSnapType = "";
+            });
+          });
         }, 550);
       }
     }, 4500);
