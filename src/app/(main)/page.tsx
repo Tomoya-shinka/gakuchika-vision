@@ -584,14 +584,14 @@ export default function HomePage() {
       {/* ===== PC レイアウト（スクロールなし、高さを埋める）===== */}
       <div className={cn("hidden sm:flex sm:flex-1 sm:overflow-hidden", bgGradient)}>
         <div className="flex flex-1 gap-3 overflow-hidden p-4">
-          {/* 左列: ボタン（上）→ カウントダウン（中）→ 統計3列（下） */}
-          <div className="flex w-[46%] shrink-0 flex-col gap-3 min-h-0">
+          {/* 左列: ボタン（上）→ カウントダウン（中）→ 統計3列（下）／カレンダー高さに引っ張られない */}
+          <div className="flex w-[46%] shrink-0 flex-col gap-3 self-start">
             <div className="h-20 w-full shrink-0">
               <Button size="lg" className="h-full w-full gap-2 px-6 text-sm" asChild>
                 <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
               </Button>
             </div>
-            <CountdownContent className="flex-1 min-h-0 flex flex-col justify-center" />
+            <CountdownContent className="flex flex-col justify-center" />
             {/* 統計 3-col */}
             <div className="grid shrink-0 grid-cols-3 gap-2">
               <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
