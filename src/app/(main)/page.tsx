@@ -468,7 +468,7 @@ export default function HomePage() {
               {currentSlide === 0 ? "人生" : "卒業"}
             </button>
             <div className="relative">
-              <div className={`flex flex-col items-center p-4 text-center sm:p-5 transition-opacity duration-500 ${currentSlide === 0 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
+              <div className={`flex flex-col items-center p-3 text-center sm:p-4 transition-opacity duration-500 ${currentSlide === 0 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
                 <p className="mb-2 text-sm text-muted-foreground sm:text-base">卒業まで、あと</p>
                 <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
                   <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{countdown.days}</span>
@@ -488,7 +488,7 @@ export default function HomePage() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">卒業予定：{(graduationDate || DEFAULT_GRADUATION_DATE).replace(/-/g, "/")}</p>
               </div>
-              <div className={`flex flex-col items-center p-4 text-center sm:p-5 transition-opacity duration-500 ${currentSlide === 1 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
+              <div className={`flex flex-col items-center p-3 text-center sm:p-4 transition-opacity duration-500 ${currentSlide === 1 ? "opacity-100" : "opacity-0 absolute inset-0 pointer-events-none"}`}>
                 <p className="mb-2 text-sm text-muted-foreground sm:text-base">人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）</p>
                 {birthDate ? (
                   <>
@@ -520,7 +520,7 @@ export default function HomePage() {
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center p-4 text-center sm:p-5">
+          <div className="flex flex-col items-center p-3 text-center sm:p-4">
             <p className="mb-2 text-sm text-muted-foreground sm:text-base">人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）</p>
             {birthDate ? (
               <>
@@ -586,9 +586,11 @@ export default function HomePage() {
         <div className="flex flex-1 gap-3 overflow-hidden p-4">
           {/* 左列: ボタン（上）→ カウントダウン（中）→ 統計3列（下） */}
           <div className="flex w-[46%] shrink-0 flex-col gap-3 min-h-0">
-            <Button size="lg" className="h-11 w-full shrink-0 gap-2 px-6 text-sm" asChild>
-              <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
-            </Button>
+            <div className="h-20 w-full shrink-0">
+              <Button size="lg" className="h-full w-full gap-2 px-6 text-sm" asChild>
+                <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
+              </Button>
+            </div>
             <CountdownContent className="flex-1 min-h-0 flex flex-col justify-center" />
             {/* 統計 3-col */}
             <div className="grid shrink-0 grid-cols-3 gap-2">
