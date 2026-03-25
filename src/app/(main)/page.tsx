@@ -33,6 +33,8 @@ import {
   Flag,
   Calendar,
   ArrowLeftRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const DEFAULT_GRADUATION_DATE = "2028-03-31";
@@ -204,6 +206,7 @@ export default function HomePage() {
   const [lifeProgress, setLifeProgress] = useState(0);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [goals, setGoals] = useState<GoalsData | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0); // 0=今月, -1=先月, +1=来月…
 
   // プロフィールから卒業予定日・入学日・生年月日・大学生フラグを取得
   useEffect(() => {
@@ -233,12 +236,11 @@ export default function HomePage() {
       entries.forEach((e) => {
         const date = new Date(e.createdAt);
         if (Number.isNaN(date.getTime())) return;
-        if (date < startOfMonth || date >= endOfMonth) return;
         const day = new Date(date);
         day.setHours(0, 0, 0, 0);
         const t = day.getTime();
-        monthly++;
-        dayCounts[t] = (dayCounts[t] ?? 0) + 1;
+        dayCounts[t] = (dayCounts[t] ?? 0) + 1; // 全月分を記録
+        if (date >= startOfMonth && date < endOfMonth) monthly++; // 今月カウントのみ分離
       });
 
       setJournalDayCounts(dayCounts);
@@ -275,11 +277,9 @@ export default function HomePage() {
           day.setHours(0, 0, 0, 0);
           dateSet.add(day.getTime());
 
-          if (date >= startOfMonth && date < endOfMonth) {
-            monthly++;
-            const t = day.getTime();
-            dayCounts[t] = (dayCounts[t] ?? 0) + 1;
-          }
+          const t = day.getTime();
+          dayCounts[t] = (dayCounts[t] ?? 0) + 1; // 全月分を記録
+          if (date >= startOfMonth && date < endOfMonth) monthly++; // 今月カウントのみ分離
         });
         let streak = 0;
         const cursor = new Date(today);
@@ -322,6 +322,8 @@ export default function HomePage() {
   }, [birthDate]);
 
   const monthCursor = new Date();
+  monthCursor.setDate(1); // 月末オーバーフロー防止
+  monthCursor.setMonth(monthCursor.getMonth() + monthOffset);
   const monthYear = monthCursor.getFullYear();
   const monthIndex = monthCursor.getMonth();
   const firstDayOfMonth = new Date(monthYear, monthIndex, 1);
@@ -669,8 +671,22 @@ export default function HomePage() {
               <Card className="overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
                 <CardContent className="p-3">
                   <GoalsCarousel slides={goalsSlides} compact />
-                  <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => setMonthOffset((o) => o - 1)}
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="前の月"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
                     <p className="text-xs font-semibold text-foreground">{monthLabel}</p>
+                    <button
+                      onClick={() => setMonthOffset((o) => o + 1)}
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="次の月"
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
                   </div>
 
                   <CalendarGrid />
@@ -743,10 +759,24 @@ export default function HomePage() {
                 <Card className="flex-1 overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
                   <CardContent className="p-3 sm:p-4">
                     <GoalsCarousel slides={goalsSlides} />
-                    <div className="mb-2 flex items-baseline justify-between gap-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setMonthOffset((o) => o - 1)}
+                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label="前の月"
+                      >
+                        <ChevronLeft className="size-4" />
+                      </button>
                       <p className="text-xs font-semibold text-foreground sm:text-sm">
                         {monthLabel}
                       </p>
+                      <button
+                        onClick={() => setMonthOffset((o) => o + 1)}
+                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label="次の月"
+                      >
+                        <ChevronRight className="size-4" />
+                      </button>
                     </div>
 
                     <CalendarGrid />
