@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 const DEFAULT_GRADUATION_DATE = "2028-03-31";
-const ENROLLMENT_DATE = "2024-04-01"; // 入学日（4年制想定）
+const DEFAULT_ENROLLMENT_DATE = "2024-04-01"; // プロフィール未設定時のフォールバック
 const AVERAGE_LIFESPAN_YEARS = 84; // 日本人の平均寿命（男女平均）
 
 interface CountdownParts {
@@ -75,8 +75,8 @@ function pad2(n: number): string {
   return n.toString().padStart(2, "0");
 }
 
-function getProgressPercent(graduationDate: string): number {
-  const start = new Date(ENROLLMENT_DATE).getTime();
+function getProgressPercent(graduationDate: string, enrollmentDate: string): number {
+  const start = new Date(enrollmentDate || DEFAULT_ENROLLMENT_DATE).getTime();
   const end = new Date(graduationDate).getTime();
   const now = Date.now();
   const total = end - start;
@@ -99,6 +99,7 @@ export default function HomePage() {
   const [monthlyJournalCount, setMonthlyJournalCount] = useState(0);
   const [journalDayCounts, setJournalDayCounts] = useState<Record<number, number>>({});
   const [graduationDate, setGraduationDate] = useState(DEFAULT_GRADUATION_DATE);
+  const [enrollmentDate, setEnrollmentDate] = useState(DEFAULT_ENROLLMENT_DATE);
   const [birthDate, setBirthDate] = useState("");
   const [isStudent, setIsStudent] = useState(true);
   const [countdown, setCountdown] = useState<CountdownParts>({
@@ -112,10 +113,11 @@ export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [goals, setGoals] = useState<GoalsData | null>(null);
 
-  // プロフィールから卒業予定日・生年月日・大学生フラグを取得
+  // プロフィールから卒業予定日・入学日・生年月日・大学生フラグを取得
   useEffect(() => {
     const profile = loadProfile();
     setGraduationDate(profile.graduationDate || DEFAULT_GRADUATION_DATE);
+    setEnrollmentDate(profile.enrollmentDate || DEFAULT_ENROLLMENT_DATE);
     setBirthDate(profile.birthDate || "");
     setIsStudent(profile.isStudent ?? true);
   }, []);
@@ -206,8 +208,8 @@ export default function HomePage() {
   }, [user?.uid]);
 
   useEffect(() => {
-    setProgressPercent(Math.round(getProgressPercent(graduationDate) * 100) / 100);
-  }, [graduationDate]);
+    setProgressPercent(Math.round(getProgressPercent(graduationDate, enrollmentDate) * 100) / 100);
+  }, [graduationDate, enrollmentDate]);
 
   useEffect(() => {
     setCountdown(getCountdownParts(graduationDate));
@@ -376,6 +378,53 @@ export default function HomePage() {
           })}
         </div>
       </div>
+    );
+  }
+
+  /** カレンダーグリッド（モバイル・PC共通） */
+  function CalendarGrid() {
+    return (
+      <>
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground sm:text-xs">
+          {weekdayLabels.map((label) => (
+            <div key={label}>{label}</div>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-7 gap-1">
+          {Array.from({ length: totalCalendarCells }).map((_, idx) => {
+            const dayNum = idx - startWeekday + 1;
+            if (dayNum < 1 || dayNum > daysInMonth) {
+              return (
+                <div
+                  key={`empty-${idx}`}
+                  className="aspect-square rounded-md border border-transparent bg-transparent"
+                />
+              );
+            }
+            const d = new Date(monthYear, monthIndex, dayNum);
+            d.setHours(0, 0, 0, 0);
+            const t = d.getTime();
+            const count = journalDayCounts[t] ?? 0;
+            const isPastNoJournal = t < todayKey && count === 0;
+            const style = getJournalCellStyle(count, isPastNoJournal);
+            const isToday = t === todayKey;
+            return (
+              <div
+                key={t}
+                className={`flex aspect-square flex-col items-center justify-center rounded-md border text-[10px] transition-colors ${style.cellBg} ${style.cellBorder} ${isToday ? "ring-2 ring-sky-500/40 dark:ring-sky-400/30" : ""}`}
+                title={count > 0 ? `${dayNum}日（${count}件）` : undefined}
+              >
+                <span className={`text-xs font-semibold ${style.numText}`}>{dayNum}</span>
+                {count > 0 ? (
+                  <span className={`mt-1 h-1.5 w-1.5 rounded-full ${style.dotBg}`} />
+                ) : (
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-transparent" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </>
     );
   }
 
@@ -601,53 +650,7 @@ export default function HomePage() {
                     <p className="text-xs font-semibold text-foreground">{monthLabel}</p>
                   </div>
 
-                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground">
-                    {weekdayLabels.map((label) => (
-                      <div key={label}>{label}</div>
-                    ))}
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-7 gap-1">
-                    {Array.from({ length: totalCalendarCells }).map((_, idx) => {
-                      const dayNum = idx - startWeekday + 1;
-                      if (dayNum < 1 || dayNum > daysInMonth) {
-                        return (
-                          <div
-                            key={`empty-m-${idx}`}
-                            className="aspect-square rounded-md border border-transparent bg-transparent"
-                          />
-                        );
-                      }
-
-                      const d = new Date(monthYear, monthIndex, dayNum);
-                      d.setHours(0, 0, 0, 0);
-                      const t = d.getTime();
-                      const count = journalDayCounts[t] ?? 0;
-
-                      const isPastNoJournal = t < todayKey && count === 0;
-                      const style = getJournalCellStyle(count, isPastNoJournal);
-                      const isToday = t === todayKey;
-
-                      return (
-                        <div
-                          key={t}
-                          className={`flex aspect-square flex-col items-center justify-center rounded-md border text-[10px] transition-colors ${
-                            style.cellBg
-                          } ${style.cellBorder} ${
-                            isToday ? "ring-2 ring-sky-500/40 dark:ring-sky-400/30" : ""
-                          }`}
-                          title={count > 0 ? `${dayNum}日（${count}件）` : undefined}
-                        >
-                          <span className={`text-xs font-semibold ${style.numText}`}>{dayNum}</span>
-                          {count > 0 ? (
-                            <span className={`mt-1 h-1.5 w-1.5 rounded-full ${style.dotBg}`} />
-                          ) : (
-                            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-transparent" />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <CalendarGrid />
                 </CardContent>
               </Card>
             </section>
@@ -723,57 +726,7 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground sm:text-xs">
-                      {weekdayLabels.map((label) => (
-                        <div key={label}>{label}</div>
-                      ))}
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-7 gap-1">
-                      {Array.from({ length: totalCalendarCells }).map((_, idx) => {
-                        const dayNum = idx - startWeekday + 1;
-                        if (dayNum < 1 || dayNum > daysInMonth) {
-                          return (
-                            <div
-                              key={`empty-${idx}`}
-                              className="aspect-square rounded-md border border-transparent bg-transparent"
-                            />
-                          );
-                        }
-
-                        const d = new Date(monthYear, monthIndex, dayNum);
-                        d.setHours(0, 0, 0, 0);
-                        const t = d.getTime();
-                        const count = journalDayCounts[t] ?? 0;
-
-                        const isPastNoJournal = t < todayKey && count === 0;
-                        const style = getJournalCellStyle(count, isPastNoJournal);
-                        const isToday = t === todayKey;
-
-                        return (
-                          <div
-                            key={t}
-                            className={`flex aspect-square flex-col items-center justify-center rounded-md border text-[10px] transition-colors ${
-                              style.cellBg
-                            } ${style.cellBorder} ${
-                              isToday ? "ring-2 ring-sky-500/40 dark:ring-sky-400/30" : ""
-                            }`}
-                            title={
-                              count > 0 ? `${dayNum}日（${count}件）` : undefined
-                            }
-                          >
-                            <span className={`text-xs font-semibold ${style.numText}`}>
-                              {dayNum}
-                            </span>
-                            {count > 0 ? (
-                              <span className={`mt-1 h-1.5 w-1.5 rounded-full ${style.dotBg}`} />
-                            ) : (
-                              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-transparent" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <CalendarGrid />
                   </CardContent>
                 </Card>
               </div>
