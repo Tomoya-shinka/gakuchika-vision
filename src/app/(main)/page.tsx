@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,73 @@ function getLifeProgressPercent(birthDate: string): number {
   death.setFullYear(death.getFullYear() + AVERAGE_LIFESPAN_YEARS);
   const total = death.getTime() - birth;
   return Math.min(100, Math.max(0, ((Date.now() - birth) / total) * 100));
+}
+
+type GoalsSlide = {
+  key: string;
+  title: string;
+  icon: ComponentType<{ className?: string }>;
+  content: string;
+  empty: string;
+};
+
+/** 目標カルーセル（HomePage の外で定義し、毎秒の再レンダーで remount されないようにする） */
+function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: boolean }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (prefersReduced) return;
+
+    const id = window.setInterval(() => {
+      // gap なしのとき: itemWidth = el.scrollWidth / slides.length
+      const itemWidth = el.scrollWidth / slides.length;
+      if (!itemWidth) return;
+      const idx = Math.round(el.scrollLeft / itemWidth);
+      const next = (idx + 1) % slides.length;
+      el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
+    }, 4500);
+
+    return () => window.clearInterval(id);
+  }, [slides.length]);
+
+  return (
+    <div className={compact ? "mb-2" : "mb-3"}>
+      <div
+        ref={trackRef}
+        className="flex overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {slides.map((s) => {
+          const Icon = s.icon;
+          const text = s.content.length > 0 ? s.content : s.empty;
+          const isEmpty = s.content.length === 0;
+          return (
+            <div key={s.key} className="w-full shrink-0 snap-center">
+              <Card className={cn("h-full gap-1 py-2 transition-shadow hover:shadow-md", compact ? "" : "sm:gap-3 sm:py-4")}>
+                <CardHeader className={cn("flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1", compact ? "" : "sm:gap-2 sm:pb-2 sm:pr-4")}>
+                  <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
+                    <Icon className="size-4 text-sky-600 dark:text-sky-400 sm:size-5" />
+                  </div>
+                  <CardTitle className={cn("truncate font-medium", compact ? "text-[10px]" : "text-[10px] sm:text-sm")}>
+                    {s.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className={cn("p-2 pt-0", compact ? "" : "sm:p-4 sm:pt-0")}>
+                  <p className={cn("line-clamp-3 font-semibold leading-relaxed", compact ? "text-sm" : "text-sm sm:text-base", isEmpty && "text-muted-foreground font-normal")}>
+                    {text}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function HomePage() {
@@ -288,7 +355,7 @@ export default function HomePage() {
     };
   }
 
-  const goalsSlides = [
+  const goalsSlides: GoalsSlide[] = [
     {
       key: "long",
       title: "長期ビジョン",
@@ -310,76 +377,7 @@ export default function HomePage() {
       content: (goals?.oneMonthGoal?.content ?? "").trim(),
       empty: "目標を設定しましょう",
     },
-  ] as const;
-
-  function GoalsCarousel({ compact }: { compact?: boolean }) {
-    const trackRef = useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-      const el = trackRef.current;
-      if (!el) return;
-
-      // reduced motion の場合は自動スクロールしない
-      const prefersReduced =
-        typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-      if (prefersReduced) return;
-
-      const intervalMs = 4500;
-      const id = window.setInterval(() => {
-        const w = el.clientWidth;
-        if (!w) return;
-        const idx = Math.round(el.scrollLeft / w);
-        const next = (idx + 1) % goalsSlides.length;
-        el.scrollTo({ left: next * w, behavior: "smooth" });
-      }, intervalMs);
-
-      return () => window.clearInterval(id);
-    }, []);
-
-    return (
-      <div className={compact ? "mb-2" : "mb-3"}>
-        <div
-          ref={trackRef}
-          className={cn(
-            "flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-            "snap-x snap-mandatory"
-          )}
-        >
-          {goalsSlides.map((s) => {
-            const Icon = s.icon;
-            const text = s.content.length > 0 ? s.content : s.empty;
-            const isEmpty = s.content.length === 0;
-            return (
-              <div
-                key={s.key}
-                className={cn(
-                  "snap-center shrink-0",
-                  "w-full"
-                )}
-              >
-                <Card className={cn("h-full gap-1 py-2 transition-shadow hover:shadow-md", compact ? "" : "sm:gap-3 sm:py-4")}>
-                  <CardHeader className={cn("flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1", compact ? "" : "sm:gap-2 sm:pb-2 sm:pr-4")}>
-                    <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40 sm:rounded-lg sm:p-2">
-                      <Icon className="size-4 text-sky-600 dark:text-sky-400 sm:size-5" />
-                    </div>
-                    <CardTitle className={cn("truncate font-medium", compact ? "text-[10px]" : "text-[10px] sm:text-sm")}>
-                      {s.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className={cn("p-2 pt-0", compact ? "" : "sm:p-4 sm:pt-0")}>
-                    <p className={cn("line-clamp-3 font-semibold leading-relaxed", compact ? "text-sm" : "text-sm sm:text-base", isEmpty && "text-muted-foreground font-normal")}>
-                      {text}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
+  ];
 
   /** カレンダーグリッド（モバイル・PC共通） */
   function CalendarGrid() {
@@ -645,7 +643,7 @@ export default function HomePage() {
 
               <Card className="overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
                 <CardContent className="p-3">
-                  <GoalsCarousel compact />
+                  <GoalsCarousel slides={goalsSlides} compact />
                   <div className="mb-2 flex items-baseline justify-between gap-3">
                     <p className="text-xs font-semibold text-foreground">{monthLabel}</p>
                   </div>
@@ -719,7 +717,7 @@ export default function HomePage() {
               <div className="flex w-full flex-col sm:max-w-[640px] sm:justify-self-end">
                 <Card className="flex-1 overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
                   <CardContent className="p-3 sm:p-4">
-                    <GoalsCarousel />
+                    <GoalsCarousel slides={goalsSlides} />
                     <div className="mb-2 flex items-baseline justify-between gap-3">
                       <p className="text-xs font-semibold text-foreground sm:text-sm">
                         {monthLabel}
