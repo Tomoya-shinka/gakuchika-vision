@@ -584,58 +584,69 @@ export default function HomePage() {
       {/* ===== PC レイアウト（スクロールなし、高さを埋める）===== */}
       <div className={cn("hidden sm:flex sm:flex-1 sm:overflow-hidden", bgGradient)}>
         <div className="flex flex-1 gap-3 overflow-hidden p-4">
-          {/* 左列: カウントダウン + ボタン */}
-          <div className="flex w-[42%] shrink-0 flex-col gap-3 min-h-0">
-            <CountdownContent className="flex-1 flex flex-col justify-center" />
-            <Button size="lg" className="h-12 w-full shrink-0 gap-2 px-6 text-sm" asChild>
+          {/* 左列: ボタン（上）→ カウントダウン（中）→ 統計3列（下） */}
+          <div className="flex w-[46%] shrink-0 flex-col gap-3 min-h-0">
+            <Button size="lg" className="h-11 w-full shrink-0 gap-2 px-6 text-sm" asChild>
               <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
             </Button>
-          </div>
-          {/* 右列: 統計3カード横並び + カレンダー */}
-          <div className="flex flex-1 min-w-0 flex-col gap-3 overflow-hidden">
+            <CountdownContent className="flex-1 min-h-0 flex flex-col justify-center" />
             {/* 統計 3-col */}
-            <div className="grid shrink-0 grid-cols-3 gap-3">
+            <div className="grid shrink-0 grid-cols-3 gap-2">
               <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
                 <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
                   <div className="shrink-0 rounded-md bg-sky-100 p-1 dark:bg-sky-900/40">
-                    <FileText className="size-4 text-sky-600 dark:text-sky-400" />
+                    <FileText className="size-3.5 text-sky-600 dark:text-sky-400" />
                   </div>
-                  <CardTitle className="truncate text-xs font-medium">総ジャーナル数</CardTitle>
+                  <CardTitle className="truncate text-[10px] font-medium">総ジャーナル数</CardTitle>
                 </CardHeader>
                 <CardContent className="p-2 pt-0">
-                  <p className="text-xl font-bold">{stats.totalCount}</p>
-                  <CardDescription className="text-xs">これまで書いた日記の合計</CardDescription>
+                  <p className="text-lg font-bold">{stats.totalCount}</p>
+                  <CardDescription className="text-[10px]">合計</CardDescription>
                 </CardContent>
               </Card>
               <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
                 <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
                   <div className="shrink-0 rounded-md bg-violet-100 p-1 dark:bg-violet-900/40">
-                    <CalendarDays className="size-4 text-violet-600 dark:text-violet-400" />
+                    <CalendarDays className="size-3.5 text-violet-600 dark:text-violet-400" />
                   </div>
-                  <CardTitle className="truncate text-xs font-medium">今月のジャーナル数</CardTitle>
+                  <CardTitle className="truncate text-[10px] font-medium">今月のジャーナル</CardTitle>
                 </CardHeader>
                 <CardContent className="p-2 pt-0">
-                  <p className="text-xl font-bold">{monthlyJournalCount}</p>
-                  <CardDescription className="text-xs">今月書いた日記の合計</CardDescription>
+                  <p className="text-lg font-bold">{monthlyJournalCount}</p>
+                  <CardDescription className="text-[10px]">今月</CardDescription>
                 </CardContent>
               </Card>
               <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
                 <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 p-2 pb-1">
                   <div className="shrink-0 rounded-md bg-amber-100 p-1 dark:bg-amber-900/40">
-                    <Flame className="size-4 text-amber-600 dark:text-amber-400" />
+                    <Flame className="size-3.5 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <CardTitle className="truncate text-xs font-medium">継続日数</CardTitle>
+                  <CardTitle className="truncate text-[10px] font-medium">継続日数</CardTitle>
                 </CardHeader>
                 <CardContent className="p-2 pt-0">
-                  <p className="text-xl font-bold">{stats.streakDays}</p>
-                  <CardDescription className="text-xs">連続で書いている日数</CardDescription>
+                  <p className="text-lg font-bold">{stats.streakDays}</p>
+                  <CardDescription className="text-[10px]">連続</CardDescription>
                 </CardContent>
               </Card>
             </div>
-            {/* 目標＋カレンダー */}
-            <Card className="flex-1 min-h-0 overflow-auto border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
-              <CardContent className="p-3">
-                <CalendarPanel />
+          </div>
+          {/* 右列: 目標カルーセル（上）＋ カレンダー（下、残り埋める） */}
+          <div className="flex flex-1 min-w-0 flex-col min-h-0">
+            <Card className="flex flex-1 min-h-0 flex-col overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
+              <CardContent className="flex flex-1 min-h-0 flex-col p-3">
+                <GoalsCarousel slides={goalsSlides} />
+                <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+                  <button onClick={() => setMonthOffset((o) => o - 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="前の月">
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <p className="text-xs font-semibold text-foreground">{monthLabel}</p>
+                  <button onClick={() => setMonthOffset((o) => o + 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="次の月">
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <CalendarGrid />
+                </div>
               </CardContent>
             </Card>
           </div>
