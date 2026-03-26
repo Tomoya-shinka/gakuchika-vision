@@ -225,7 +225,12 @@ export function GlobalAiChat() {
                 )}>
                   {mode === "coaching" ? <BrainCircuit className="size-3.5" /> : <Bot className="size-3.5" />}
                 </div>
-                <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-3 text-sm leading-relaxed">
+                <div className={cn(
+                  "rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed",
+                  mode === "coaching"
+                    ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
+                    : "bg-muted text-foreground"
+                )}>
                   {mode === "coaching"
                     ? COACHING_WELCOME_MESSAGE
                     : "こんにちは！ガクチカビジョンのAIアシスタントです。ジャーナルや自己分析のデータをもとに、あなたの就活をサポートします。何でもお気軽にどうぞ！"}
@@ -295,6 +300,8 @@ export function GlobalAiChat() {
                     "max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap",
                     isUser
                       ? "rounded-tr-sm bg-primary text-primary-foreground"
+                      : mode === "coaching"
+                      ? "rounded-tl-sm bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
                       : "rounded-tl-sm bg-muted text-foreground"
                   )}
                 >
@@ -306,10 +313,18 @@ export function GlobalAiChat() {
 
           {isLoading && (
             <div className="flex gap-2.5">
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Bot className="size-3.5" />
+              <div className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-full",
+                mode === "coaching" ? "bg-emerald-100 text-emerald-600" : "bg-primary/10 text-primary"
+              )}>
+                {mode === "coaching" ? <BrainCircuit className="size-3.5" /> : <Bot className="size-3.5" />}
               </div>
-              <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-3">
+              <div className={cn(
+                "rounded-2xl rounded-tl-sm px-4 py-3",
+                mode === "coaching"
+                  ? "bg-emerald-50 dark:bg-emerald-950/30"
+                  : "bg-muted"
+              )}>
                 <div className="flex items-center gap-1.5">
                   <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
                   <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
