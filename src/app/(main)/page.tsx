@@ -675,9 +675,9 @@ export default function HomePage() {
             <CountdownContent />
 
             {/* 今日のジャーナルを書く */}
-            <Button size="lg" className="h-12 w-full gap-2 px-6 text-sm" asChild>
+            <Button size="lg" className="h-20 w-full gap-2 px-6 text-base" asChild>
               <Link href="/journal">
-                <BookOpen className="size-4" />
+                <BookOpen className="size-5" />
                 今日のジャーナルを書く
               </Link>
             </Button>
