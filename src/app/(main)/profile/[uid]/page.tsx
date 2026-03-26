@@ -254,7 +254,7 @@ export default function ProfilePage() {
                   <span className="text-lg font-bold text-foreground">{streakDays}</span>
                   <span className="text-xs text-muted-foreground">継続日数</span>
                 </div>
-                <div className="mb-0.5 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
+                <div className="mb-0.5 flex gap-3 text-[11px] text-muted-foreground">
                   <span><span className="font-semibold text-foreground">{followersCount}</span> フォロワー</span>
                   <span><span className="font-semibold text-foreground">{followingCount}</span> フォロー中</span>
                 </div>
