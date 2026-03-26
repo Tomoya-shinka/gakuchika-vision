@@ -61,7 +61,6 @@ export async function GET(
       const allSnap = await db
         .collection("journals")
         .where("userId", "==", uid)
-        .orderBy("createdAt", "desc")
         .get();
 
       totalJournalCount = allSnap.size;
@@ -84,8 +83,13 @@ export async function GET(
         cursor = prev.toISOString().slice(0, 10);
       }
 
-      // 公開ジャーナルのみ表示用に抽出（最大20件）
-      const publicDocs = allSnap.docs.filter(
+      // createdAt 降順でソート後、公開ジャーナルのみ抽出（最大20件）
+      const sortedDocs = [...allSnap.docs].sort((a, b) => {
+        const aTime = new Date(toIso((a.data() as Record<string, unknown>).createdAt)).getTime();
+        const bTime = new Date(toIso((b.data() as Record<string, unknown>).createdAt)).getTime();
+        return bTime - aTime;
+      });
+      const publicDocs = sortedDocs.filter(
         (d) => (d.data() as Record<string, unknown>).isPublic === true
       ).slice(0, 20);
 
