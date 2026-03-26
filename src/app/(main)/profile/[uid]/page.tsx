@@ -9,8 +9,12 @@ import {
   getDocs,
   addDoc,
   deleteDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
   query,
   where,
+  orderBy,
   limit,
   Timestamp,
   getDoc,
@@ -20,8 +24,22 @@ import { useAuth } from "@/contexts/auth-context";
 import { stripHtml, formatDate } from "@/lib/journal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Heart, Loader2, MessageCircle, MessageSquare, UserCheck, UserPlus } from "lucide-react";
+import {
+  ArrowLeft,
+  Heart,
+  Loader2,
+  MessageCircle,
+  MessageSquare,
+  Send,
+  UserCheck,
+  UserPlus,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ja } from "date-fns/locale";
+
+const COMMENTS_PREVIEW = 3;
 
 type ProfileData = {
   displayName: string;
@@ -40,9 +58,27 @@ type JournalItem = {
   commentCount: number;
 };
 
+type Comment = {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+};
+
 function buildGrade(grade: string): string {
   const normalized = grade.replace(/年生$/, "");
   return normalized ? `${normalized}年生` : "";
+}
+
+function toIso(val: unknown): string {
+  if (!val) return new Date().toISOString();
+  if (val instanceof Timestamp) return val.toDate().toISOString();
+  if (typeof val === "string") return val;
+  if (typeof val === "object" && "seconds" in (val as object)) {
+    return new Date((val as { seconds: number }).seconds * 1000).toISOString();
+  }
+  return new Date().toISOString();
 }
 
 export default function ProfilePage() {
@@ -60,6 +96,15 @@ export default function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followDocId, setFollowDocId] = useState<string | null>(null);
+
+  // コメント関連
+  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
+  const [comments, setComments] = useState<Record<string, Comment[]>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [submittingCommentId, setSubmittingCommentId] = useState<string | null>(null);
+  const [showAllCommentsId, setShowAllCommentsId] = useState<string | null>(null);
+  // いいね関連
+  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
 
   const isOwnProfile = user?.uid === uid;
 
@@ -151,7 +196,6 @@ export default function ProfilePage() {
     if (!user?.uid) return;
     try {
       const db = getDb();
-      // 既存の会話を探す
       const q = query(
         collection(db, "conversations"),
         where("participants", "array-contains", user.uid),
@@ -166,7 +210,6 @@ export default function ProfilePage() {
       if (existing) {
         router.push(`/messages/${existing.id}`);
       } else {
-        // 相手の表示名を取得
         const targetProfile = profile;
         const myProfileSnap = await getDoc(doc(db, "users", user.uid));
         const myData = myProfileSnap.data() as Record<string, unknown> | undefined;
@@ -186,6 +229,137 @@ export default function ProfilePage() {
       }
     } catch {
       // silent
+    }
+  };
+
+  // コメント取得
+  const loadComments = useCallback(async (journalId: string) => {
+    try {
+      const db = getDb();
+      const commentsRef = collection(db, "journals", journalId, "comments");
+      const snap = await getDocs(
+        query(commentsRef, orderBy("createdAt", "desc"), limit(50))
+      );
+      const list: Comment[] = snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          userId: String(data.userId ?? ""),
+          userName: String(data.userName ?? "ユーザー"),
+          text: String(data.text ?? ""),
+          createdAt: toIso(data.createdAt),
+        };
+      });
+      setComments((prev) => ({ ...prev, [journalId]: list }));
+    } catch {
+      // silent
+    }
+  }, []);
+
+  // コメントボタンクリック
+  const handleCommentClick = (journalId: string) => {
+    if (expandedCommentId === journalId) {
+      setExpandedCommentId(null);
+      return;
+    }
+    setExpandedCommentId(journalId);
+    if (!comments[journalId]) loadComments(journalId);
+  };
+
+  // コメント投稿
+  const handleSubmitComment = async (journalId: string) => {
+    if (!user?.uid) return;
+    const text = (commentInputs[journalId] ?? "").trim();
+    if (!text) return;
+
+    // 投稿者の表示名取得
+    let displayName = "ユーザー";
+    try {
+      const db = getDb();
+      const mySnap = await getDoc(doc(db, "users", user.uid));
+      const myData = mySnap.data() as Record<string, unknown> | undefined;
+      displayName = String(myData?.displayName ?? "ユーザー");
+    } catch {
+      // silent
+    }
+
+    setSubmittingCommentId(journalId);
+    setCommentInputs((prev) => ({ ...prev, [journalId]: "" }));
+    try {
+      const db = getDb();
+      const commentsRef = collection(db, "journals", journalId, "comments");
+      const ref = await addDoc(commentsRef, {
+        userId: user.uid,
+        userName: displayName,
+        text,
+        createdAt: Timestamp.now(),
+      });
+      const added: Comment = {
+        id: ref.id,
+        userId: user.uid,
+        userName: displayName,
+        text,
+        createdAt: new Date().toISOString(),
+      };
+      setComments((prev) => {
+        const list = prev[journalId] ?? [];
+        return { ...prev, [journalId]: [added, ...list] };
+      });
+      // 通知（自分以外の投稿へのコメント）
+      const journalItem = journals.find((j) => j.id === journalId);
+      if (journalItem && journalItem.id !== user.uid) {
+        try {
+          await addDoc(collection(db, "notifications"), {
+            toUserId: uid,
+            fromUserId: user.uid,
+            journalId,
+            type: "comment",
+            read: false,
+            createdAt: Timestamp.now(),
+          });
+        } catch {
+          // silent
+        }
+      }
+    } catch {
+      setCommentInputs((prev) => ({ ...prev, [journalId]: text }));
+    } finally {
+      setSubmittingCommentId(null);
+    }
+  };
+
+  // いいね
+  const handleLike = async (journalId: string) => {
+    if (!user?.uid) return;
+    const item = journals.find((j) => j.id === journalId);
+    if (!item) return;
+    setLikingIds((prev) => new Set(prev).add(journalId));
+    const isLiked = item.likes.includes(user.uid);
+    const nextLikes = isLiked
+      ? item.likes.filter((id) => id !== user.uid)
+      : [...item.likes, user.uid];
+    setJournals((prev) =>
+      prev.map((j) => (j.id === journalId ? { ...j, likes: nextLikes } : j))
+    );
+    try {
+      const db = getDb();
+      const ref = doc(db, "journals", journalId);
+      if (isLiked) {
+        await updateDoc(ref, { likes: arrayRemove(user.uid) });
+      } else {
+        await updateDoc(ref, { likes: arrayUnion(user.uid) });
+      }
+    } catch {
+      // ロールバック
+      setJournals((prev) =>
+        prev.map((j) => (j.id === journalId ? { ...j, likes: item.likes } : j))
+      );
+    } finally {
+      setLikingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(journalId);
+        return next;
+      });
     }
   };
 
@@ -232,7 +406,7 @@ export default function ProfilePage() {
         <div className="mx-auto w-full max-w-2xl px-4 pt-6 sm:px-6 sm:pt-8">
           {/* プロフィールヘッダー */}
           <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-8">
-            {/* アバター（白リング） */}
+            {/* アバター */}
             <div className="flex size-24 shrink-0 items-center justify-center rounded-full bg-sky-100 text-3xl font-bold text-sky-700 shadow-lg ring-4 ring-white dark:bg-sky-900/60 dark:text-sky-300 dark:ring-slate-900 sm:size-28">
               {initial}
             </div>
@@ -285,9 +459,7 @@ export default function ProfilePage() {
           {/* 公開ジャーナルセクション見出し */}
           <div className="mb-4 flex items-center gap-2 border-b border-border pb-2">
             <div className="h-4 w-1 rounded-full bg-primary" />
-            <h3 className="text-sm font-semibold text-foreground">
-              公開ジャーナル
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">公開ジャーナル</h3>
             <span className="ml-auto text-xs text-muted-foreground">{journals.length}件</span>
           </div>
 
@@ -297,12 +469,17 @@ export default function ProfilePage() {
             <div className="flex flex-col gap-3 pb-8">
               {journals.map((journal) => {
                 const plain = stripHtml(journal.content);
+                const isLiked = journal.likes.includes(user?.uid ?? "");
+                const isExpanded = expandedCommentId === journal.id;
+                const journalComments = comments[journal.id];
+
                 return (
                   <Card
                     key={journal.id}
                     className="border-l-[3px] border-l-primary/60 bg-white shadow-sm dark:bg-slate-900"
                   >
                     <CardContent className="px-5 py-4">
+                      {/* タイトル + 日時 */}
                       <div className="mb-1.5 flex items-baseline justify-between gap-2">
                         <p className="text-sm font-semibold text-foreground">
                           {journal.title || formatDate(journal.createdAt)}
@@ -313,19 +490,142 @@ export default function ProfilePage() {
                           </span>
                         )}
                       </div>
+
+                      {/* 本文 */}
                       <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                         {plain}
                       </p>
+
+                      {/* いいね・コメントボタン */}
                       <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 hover:text-rose-500">
-                          <Heart className="size-3.5" />
+                        {/* いいね */}
+                        <button
+                          type="button"
+                          onClick={() => handleLike(journal.id)}
+                          disabled={!user || likingIds.has(journal.id)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-1 py-1 transition-colors hover:text-rose-500 disabled:opacity-50",
+                            isLiked ? "text-rose-500" : ""
+                          )}
+                          aria-label={isLiked ? "いいねを解除" : "いいね"}
+                        >
+                          <Heart
+                            className={cn("size-3.5", isLiked && "fill-rose-500")}
+                            aria-hidden
+                          />
                           {journal.likes.length}
-                        </span>
-                        <span className="inline-flex items-center gap-1 hover:text-sky-500">
-                          <MessageCircle className="size-3.5" />
-                          {journal.commentCount}
-                        </span>
+                        </button>
+
+                        {/* コメント */}
+                        <button
+                          type="button"
+                          onClick={() => handleCommentClick(journal.id)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-1 py-1 hover:text-sky-500",
+                            isExpanded && "text-sky-500"
+                          )}
+                          aria-label="コメント"
+                        >
+                          <MessageCircle className="size-3.5" aria-hidden />
+                          {journalComments !== undefined
+                            ? journalComments.length
+                            : (journal.commentCount ?? 0)}
+                        </button>
                       </div>
+
+                      {/* コメント展開エリア */}
+                      {isExpanded && (
+                        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                          {/* コメント入力 */}
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="コメントを追加..."
+                              value={commentInputs[journal.id] ?? ""}
+                              onChange={(e) =>
+                                setCommentInputs((prev) => ({
+                                  ...prev,
+                                  [journal.id]: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSubmitComment(journal.id);
+                                }
+                              }}
+                              className="flex-1 text-sm"
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleSubmitComment(journal.id)}
+                              disabled={
+                                !(commentInputs[journal.id] ?? "").trim() ||
+                                !!submittingCommentId
+                              }
+                            >
+                              {submittingCommentId === journal.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <Send className="size-4 text-sky-500" />
+                              )}
+                            </Button>
+                          </div>
+
+                          {/* コメント一覧 */}
+                          <div className="space-y-2">
+                            {journalComments === undefined ? (
+                              <div className="flex justify-center py-2">
+                                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                              </div>
+                            ) : journalComments.length === 0 ? (
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                まだコメントがありません
+                              </p>
+                            ) : (
+                              (showAllCommentsId === journal.id
+                                ? journalComments
+                                : journalComments.slice(0, COMMENTS_PREVIEW)
+                              ).map((c) => (
+                                <div
+                                  key={c.id}
+                                  className="flex gap-2.5 rounded-md bg-slate-50 px-3 py-2.5 text-xs dark:bg-slate-800/60"
+                                >
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                                        {c.userName}
+                                      </span>
+                                      <span className="text-slate-400 dark:text-slate-500">
+                                        {formatDistanceToNow(new Date(c.createdAt), {
+                                          locale: ja,
+                                          addSuffix: true,
+                                        })}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-slate-600 dark:text-slate-300">
+                                      {c.text}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+
+                            {/* すべて見るボタン */}
+                            {journalComments &&
+                              journalComments.length > COMMENTS_PREVIEW &&
+                              showAllCommentsId !== journal.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAllCommentsId(journal.id)}
+                                  className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+                                >
+                                  すべて見る（{journalComments.length}件）
+                                </button>
+                              )}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
