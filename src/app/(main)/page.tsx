@@ -708,10 +708,22 @@ export default function HomePage() {
               </Card>
             </div>
 
-            {/* 目標カルーセル＋カレンダー */}
+            {/* 目標カルーセル */}
+            <GoalsCarousel slides={goalsSlides} />
+
+            {/* カレンダー */}
             <Card className="overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
               <CardContent className="p-3">
-                <CalendarPanel />
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <button onClick={() => setMonthOffset((o) => o - 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="前の月">
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <p className="text-xs font-semibold text-foreground sm:text-sm">{monthLabel}</p>
+                  <button onClick={() => setMonthOffset((o) => o + 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="次の月">
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+                <CalendarGrid />
               </CardContent>
             </Card>
           </div>
