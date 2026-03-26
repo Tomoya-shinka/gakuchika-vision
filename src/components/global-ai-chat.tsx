@@ -183,7 +183,7 @@ export function GlobalAiChat() {
                 className={cn(
                   "flex items-center gap-1 rounded px-2 py-1 transition-colors",
                   mode === "coaching"
-                    ? "bg-violet-600 text-white"
+                    ? "bg-emerald-600 text-white"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -221,7 +221,7 @@ export function GlobalAiChat() {
               <div className="flex gap-3">
                 <div className={cn(
                   "flex size-7 shrink-0 items-center justify-center rounded-full",
-                  mode === "coaching" ? "bg-violet-100 text-violet-600" : "bg-primary/10 text-primary"
+                  mode === "coaching" ? "bg-emerald-100 text-emerald-600" : "bg-primary/10 text-primary"
                 )}>
                   {mode === "coaching" ? <BrainCircuit className="size-3.5" /> : <Bot className="size-3.5" />}
                 </div>
@@ -245,7 +245,7 @@ export function GlobalAiChat() {
                       className={cn(
                         "rounded-full border px-3 py-1.5 text-xs transition-colors",
                         mode === "coaching"
-                          ? "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300"
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
                           : "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 active:bg-primary/15"
                       )}
                     >
@@ -278,7 +278,7 @@ export function GlobalAiChat() {
                     isUser
                       ? "bg-primary text-primary-foreground"
                       : mode === "coaching"
-                      ? "bg-violet-100 text-violet-600"
+                      ? "bg-emerald-100 text-emerald-600"
                       : "bg-primary/10 text-primary"
                   )}
                 >
