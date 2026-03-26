@@ -229,29 +229,32 @@ export default function ProfilePage() {
       </header>
 
       <main className="flex flex-1 flex-col overflow-auto bg-gray-50 dark:bg-slate-950/60">
-        <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-          {/* プロフィールヘッダー */}
-          <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">
-            {/* アバター */}
-            <div className="flex size-24 shrink-0 items-center justify-center rounded-full bg-slate-200 text-3xl font-bold text-slate-600 shadow-sm dark:bg-slate-700 dark:text-slate-200 sm:size-28">
+        {/* 青グラデーションバナー */}
+        <div className="h-24 shrink-0 bg-gradient-to-br from-sky-500 to-blue-700 dark:from-sky-800 dark:to-blue-950 sm:h-28" />
+
+        <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
+          {/* プロフィールヘッダー（バナーと重なる） */}
+          <div className="-mt-12 mb-6 flex flex-col items-center gap-3 sm:-mt-14 sm:flex-row sm:items-end sm:gap-8">
+            {/* アバター（白リング） */}
+            <div className="flex size-24 shrink-0 items-center justify-center rounded-full bg-sky-100 text-3xl font-bold text-sky-700 shadow-lg ring-4 ring-white dark:bg-sky-900/60 dark:text-sky-300 dark:ring-slate-900 sm:size-28">
               {initial}
             </div>
 
             {/* プロフィール情報 */}
-            <div className="flex flex-1 flex-col items-center gap-3 sm:items-start">
+            <div className="flex flex-1 flex-col items-center gap-3 pb-1 sm:items-start">
               <h2 className="text-xl font-bold text-foreground sm:text-2xl">{name}</h2>
               {subtitle && (
-                <p className="text-sm text-muted-foreground">{subtitle}</p>
+                <p className="text-xs text-muted-foreground">{subtitle}</p>
               )}
 
               {/* 統計 */}
               <div className="flex items-end gap-6 sm:gap-8">
                 <div className="flex flex-col items-center gap-0.5 text-center">
-                  <span className="text-lg font-bold text-foreground">{totalJournalCount}</span>
+                  <span className="text-lg font-bold text-primary">{totalJournalCount}</span>
                   <span className="text-xs text-muted-foreground">総ジャーナル数</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5 text-center">
-                  <span className="text-lg font-bold text-foreground">{streakDays}</span>
+                  <span className="text-lg font-bold text-primary">{streakDays}</span>
                   <span className="text-xs text-muted-foreground">継続日数</span>
                 </div>
                 <div className="mb-0.5 flex gap-3 text-[11px] text-muted-foreground">
@@ -263,36 +266,18 @@ export default function ProfilePage() {
               {/* アクションボタン */}
               {!isOwnProfile && (
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant={isFollowing ? "outline" : "default"}
-                    onClick={handleFollow}
-                    disabled={followLoading}
-                    className="gap-1.5"
-                  >
-                    {followLoading ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : isFollowing ? (
-                      <UserCheck className="size-3.5" />
-                    ) : (
-                      <UserPlus className="size-3.5" />
-                    )}
+                  <Button size="sm" variant={isFollowing ? "outline" : "default"} onClick={handleFollow} disabled={followLoading} className="gap-1.5">
+                    {followLoading ? <Loader2 className="size-3.5 animate-spin" /> : isFollowing ? <UserCheck className="size-3.5" /> : <UserPlus className="size-3.5" />}
                     {isFollowing ? "フォロー中" : "フォロー"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleDM}
-                    className="gap-1.5"
-                  >
-                    <MessageSquare className="size-3.5" />
-                    DM
+                  <Button size="sm" variant="outline" onClick={handleDM} className="gap-1.5">
+                    <MessageSquare className="size-3.5" />DM
                   </Button>
                 </div>
               )}
               {isOwnProfile && (
                 <Link href="/mypage">
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" className="border-primary/40 text-primary hover:bg-primary/5">
                     プロフィールを編集
                   </Button>
                 </Link>
@@ -300,24 +285,25 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* 区切り */}
-          <div className="mb-4 border-t border-border" />
-
-          {/* 公開ジャーナル一覧 */}
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            公開ジャーナル（{journals.length}件）
-          </h3>
+          {/* 公開ジャーナルセクション見出し */}
+          <div className="mb-4 flex items-center gap-2 border-b border-border pb-2">
+            <div className="h-4 w-1 rounded-full bg-primary" />
+            <h3 className="text-sm font-semibold text-foreground">
+              公開ジャーナル
+            </h3>
+            <span className="ml-auto text-xs text-muted-foreground">{journals.length}件</span>
+          </div>
 
           {journals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">まだ公開ジャーナルがありません。</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">まだ公開ジャーナルがありません。</p>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 pb-8">
               {journals.map((journal) => {
                 const plain = stripHtml(journal.content);
                 return (
                   <Card
                     key={journal.id}
-                    className="border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                    className="border-l-[3px] border-l-primary/60 bg-white shadow-sm dark:bg-slate-900"
                   >
                     <CardContent className="px-5 py-4">
                       <div className="mb-1.5 flex items-baseline justify-between gap-2">
@@ -330,15 +316,15 @@ export default function ProfilePage() {
                           </span>
                         )}
                       </div>
-                      <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                         {plain}
                       </p>
                       <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1 hover:text-rose-500">
                           <Heart className="size-3.5" />
                           {journal.likes.length}
                         </span>
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1 hover:text-sky-500">
                           <MessageCircle className="size-3.5" />
                           {journal.commentCount}
                         </span>
