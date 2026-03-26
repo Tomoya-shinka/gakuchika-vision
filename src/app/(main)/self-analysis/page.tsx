@@ -71,10 +71,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
   PartyPopper, Laugh, SmilePlus, HeartHandshake,
   Trophy, Target, Crown, Flag, CheckCircle2, Award, Medal, Gem, Ribbon, Badge,
   Leaf, TreePine, Mountain, Cloud, Moon, Waves, Flower2, Sprout, Snowflake, Wind, Rainbow, Sunset,
-  BookOpen, PenLine, Lightbulb, Brain, GraduationCap, Briefcase,
+  BookOpen, PenLine, Pencil, Lightbulb, Brain, GraduationCap, Briefcase,
   Laptop, Search, BarChart2, Microscope, FlaskConical, FileText, ClipboardList, Calculator,
   Music, Palette, Camera, Dumbbell, Gamepad2, Guitar, Bike, Headphones, Clapperboard, Swords, Volleyball,
-  Users, Globe, Home, Bell, Eye, Shield, Calendar, Bookmark, Coffee,
+  Users, Globe, Home, MessageCircle, Bell, Eye, Shield, Calendar, Bookmark, Coffee,
   Archive, Folder, Layers, Map, Anchor, Feather, Rocket, Gift, Key, Compass,
 };
 
