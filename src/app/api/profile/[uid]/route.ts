@@ -130,11 +130,25 @@ export async function GET(
       journals = [];
     }
 
+    // フォロワー数・フォロー中数
+    let followersCount = 0;
+    let followingCount = 0;
+    try {
+      const [fwSnap, fgSnap] = await Promise.all([
+        db.collection("follows").where("followedId", "==", uid).count().get(),
+        db.collection("follows").where("followerId", "==", uid).count().get(),
+      ]);
+      followersCount = fwSnap.data().count ?? 0;
+      followingCount = fgSnap.data().count ?? 0;
+    } catch { /* silent */ }
+
     return NextResponse.json({
       profile,
       journals,
       totalJournalCount,
       streakDays,
+      followersCount,
+      followingCount,
     });
   } catch (e) {
     console.error("[api/profile]", e);

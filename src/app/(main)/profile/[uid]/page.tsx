@@ -54,6 +54,8 @@ export default function ProfilePage() {
   const [journals, setJournals] = useState<JournalItem[]>([]);
   const [totalJournalCount, setTotalJournalCount] = useState(0);
   const [streakDays, setStreakDays] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -72,11 +74,15 @@ export default function ProfilePage() {
           journals: JournalItem[];
           totalJournalCount: number;
           streakDays: number;
+          followersCount: number;
+          followingCount: number;
         };
         setProfile(data.profile);
         setJournals(data.journals ?? []);
         setTotalJournalCount(data.totalJournalCount ?? 0);
         setStreakDays(data.streakDays ?? 0);
+        setFollowersCount(data.followersCount ?? 0);
+        setFollowingCount(data.followingCount ?? 0);
       }
     } catch {
       // silent
@@ -239,14 +245,18 @@ export default function ProfilePage() {
               )}
 
               {/* 統計 */}
-              <div className="flex gap-6 text-center sm:gap-8">
-                <div className="flex flex-col items-center gap-0.5">
+              <div className="flex items-end gap-6 sm:gap-8">
+                <div className="flex flex-col items-center gap-0.5 text-center">
                   <span className="text-lg font-bold text-foreground">{totalJournalCount}</span>
                   <span className="text-xs text-muted-foreground">総ジャーナル数</span>
                 </div>
-                <div className="flex flex-col items-center gap-0.5">
+                <div className="flex flex-col items-center gap-0.5 text-center">
                   <span className="text-lg font-bold text-foreground">{streakDays}</span>
                   <span className="text-xs text-muted-foreground">継続日数</span>
+                </div>
+                <div className="mb-0.5 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
+                  <span><span className="font-semibold text-foreground">{followersCount}</span> フォロワー</span>
+                  <span><span className="font-semibold text-foreground">{followingCount}</span> フォロー中</span>
                 </div>
               </div>
 
