@@ -2,17 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   collection,
   doc,
   deleteDoc,
   getDoc,
-  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
-  addDoc,
   updateDoc,
   arrayUnion,
   arrayRemove,
@@ -21,7 +20,6 @@ import {
 } from "firebase/firestore";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +45,6 @@ import {
   RotateCcw,
   MoreHorizontal,
   Trash2,
-  Send,
   Mail,
   Play,
   Pause,
@@ -221,6 +218,7 @@ function buildSubtitle(p: AuthorProfile | null): string {
 export default function FeedPage() {
   const { user } = useAuth();
   const { markAllRead } = useCommentNotifications();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"journal" | "dm">("journal");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [dmLoading, setDmLoading] = useState(true);
@@ -238,12 +236,7 @@ export default function FeedPage() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
-  const [comments, setComments] = useState<Record<string, Comment[]>>({});
-  const [showAllCommentsId, setShowAllCommentsId] = useState<string | null>(null);
-  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
-  const [submittingCommentId, setSubmittingCommentId] = useState<string | null>(null);
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
@@ -315,94 +308,6 @@ export default function FeedPage() {
     }
   };
 
-  const loadComments = useCallback(async (journalId: string) => {
-    try {
-      const db = getDb();
-      const commentsRef = collection(db, "journals", journalId, "comments");
-      const snap = await getDocs(
-        query(commentsRef, orderBy("createdAt", "desc"), limit(50))
-      );
-      const list: Comment[] = snap.docs.map((d) => {
-        const data = d.data() as Record<string, unknown>;
-        return {
-          id: d.id,
-          userId: String(data.userId ?? ""),
-          userName: String(data.userName ?? "ユーザー"),
-          text: String(data.text ?? ""),
-          createdAt: toIso(data.createdAt),
-        };
-      });
-      setComments((prev) => ({ ...prev, [journalId]: list }));
-    } catch (e) {
-      console.error("[feed] failed to load comments:", e);
-    }
-  }, []);
-
-  const handleCommentClick = (journalId: string) => {
-    if (expandedCommentId === journalId) {
-      setExpandedCommentId(null);
-      return;
-    }
-    setExpandedCommentId(journalId);
-    if (!comments[journalId]) loadComments(journalId);
-  };
-
-  const handleCommentInputChange = (journalId: string, value: string) => {
-    setCommentInputs((prev) => ({ ...prev, [journalId]: value }));
-  };
-
-  const handleSubmitComment = async (journalId: string) => {
-    if (!user?.uid) return;
-    const text = (commentInputs[journalId] ?? "").trim();
-    if (!text) return;
-    const displayName =
-      (await fetchAuthorProfile(user.uid))?.displayName?.trim() || "ユーザー";
-    setSubmittingCommentId(journalId);
-    setCommentInputs((prev) => ({ ...prev, [journalId]: "" }));
-    try {
-      const db = getDb();
-      const commentsRef = collection(db, "journals", journalId, "comments");
-      const newComment = {
-        userId: user.uid,
-        userName: displayName,
-        text,
-        createdAt: Timestamp.now(),
-      };
-      const ref = await addDoc(commentsRef, newComment);
-      const added: Comment = {
-        id: ref.id,
-        userId: user.uid,
-        userName: displayName,
-        text,
-        createdAt: new Date().toISOString(),
-      };
-      setComments((prev) => {
-        const list = prev[journalId] ?? [];
-        return { ...prev, [journalId]: [added, ...list] };
-      });
-      // 他のユーザーの投稿へのコメントは通知を書き込む
-      const journalItem = items.find((i) => i.id === journalId);
-      if (journalItem && journalItem.userId !== user.uid) {
-        try {
-          await addDoc(collection(db, "notifications"), {
-            toUserId: journalItem.userId,
-            fromUserId: user.uid,
-            journalId,
-            type: "comment",
-            read: false,
-            createdAt: Timestamp.now(),
-          });
-        } catch {
-          // 通知書き込み失敗は非クリティカル
-        }
-      }
-    } catch (e) {
-      console.error("[feed] failed to post comment:", e);
-      setCommentInputs((prev) => ({ ...prev, [journalId]: text }));
-    } finally {
-      setSubmittingCommentId(null);
-    }
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -574,16 +479,10 @@ export default function FeedPage() {
     return unsub;
   }, [user?.uid]);
 
-  useEffect(() => {
-    if (expandedCommentId && !comments[expandedCommentId]) {
-      loadComments(expandedCommentId);
-    }
-  }, [expandedCommentId, comments, loadComments]);
 
   const empty = !loading && !error && items.length === 0;
   const hasPermissionError = !!error && /missing or insufficient permissions/i.test(error);
 
-  const COMMENTS_PREVIEW = 3;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -809,7 +708,8 @@ export default function FeedPage() {
               return (
                 <Card
                   key={item.id}
-                  className="border border-slate-100 bg-white p-0 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                  onClick={() => router.push(`/feed/${item.id}`)}
+                  className="cursor-pointer border border-slate-100 bg-white p-0 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
                 >
                   <CardHeader className="relative px-6 pb-0 pt-5 sm:pt-6">
                     <div className="flex items-start justify-between gap-2">
@@ -834,6 +734,7 @@ export default function FeedPage() {
                         ) : (
                           <Link
                             href={`/profile/${item.userId}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                           >
                             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -866,6 +767,7 @@ export default function FeedPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={(e) => e.stopPropagation()}
                               className="size-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                               aria-label="メニューを開く"
                             >
@@ -910,7 +812,7 @@ export default function FeedPage() {
                         {showToggle && (
                           <button
                             type="button"
-                            onClick={() => toggleExpanded(item.id)}
+                            onClick={(e) => { e.stopPropagation(); toggleExpanded(item.id); }}
                             className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
                           >
                             {isExpanded ? "閉じる" : "もっと見る"}
@@ -922,7 +824,7 @@ export default function FeedPage() {
                     <div className="mt-4 flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
                       <button
                         type="button"
-                        onClick={() => handleLike(item.id)}
+                        onClick={(e) => { e.stopPropagation(); void handleLike(item.id); }}
                         disabled={!user || likingIds.has(item.id)}
                         className={cn(
                           "inline-flex items-center gap-1 rounded-full px-1 py-1 transition-colors hover:text-rose-500 disabled:opacity-50",
@@ -945,109 +847,16 @@ export default function FeedPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleCommentClick(item.id)}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-1 py-1 hover:text-sky-500",
-                          expandedCommentId === item.id && "text-sky-500"
-                        )}
+                        onClick={(e) => { e.stopPropagation(); router.push(`/feed/${item.id}`); }}
+                        className="inline-flex items-center gap-1 rounded-full px-1 py-1 hover:text-sky-500"
                         aria-label="コメント"
                       >
                         <MessageCircle className="size-4" aria-hidden />
                         <span className="min-w-[1ch] text-[11px] sm:inline">
-                          {comments[item.id] !== undefined
-                            ? comments[item.id].length
-                            : (item.commentCount ?? 0)}
+                          {item.commentCount ?? 0}
                         </span>
                       </button>
                     </div>
-
-                    {expandedCommentId === item.id && (
-                      <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="コメントを追加..."
-                            value={commentInputs[item.id] ?? ""}
-                            onChange={(e) =>
-                              handleCommentInputChange(item.id, e.target.value)
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSubmitComment(item.id);
-                              }
-                            }}
-                            className="flex-1"
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleSubmitComment(item.id)}
-                            disabled={
-                              !(commentInputs[item.id] ?? "").trim() ||
-                              !!submittingCommentId
-                            }
-                          >
-                            <Send className="size-4 text-sky-500" />
-                          </Button>
-                        </div>
-                        <div className="space-y-2">
-                          {(comments[item.id] ?? []).length === 0 && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              まだコメントがありません
-                            </p>
-                          )}
-                          {(showAllCommentsId === item.id
-                            ? comments[item.id] ?? []
-                            : (comments[item.id] ?? []).slice(0, COMMENTS_PREVIEW)
-                          ).map((c) => (
-                            <div
-                              key={c.id}
-                              className="flex gap-2.5 rounded-md bg-slate-50 px-3 py-2.5 text-xs dark:bg-slate-800/60"
-                            >
-                              {/* アバター */}
-                              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                {c.userName.charAt(0).toUpperCase()}
-                              </div>
-                              {/* コンテンツ */}
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                  <p className="font-semibold text-slate-700 dark:text-slate-200">
-                                    {c.userName}
-                                  </p>
-                                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                                    {formatDate(c.createdAt)}
-                                  </p>
-                                </div>
-                                <p className="mt-0.5 break-words text-slate-600 dark:text-slate-300">
-                                  {c.text}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                          {(comments[item.id] ?? []).length > COMMENTS_PREVIEW &&
-                            showAllCommentsId !== item.id && (
-                              <button
-                                type="button"
-                                onClick={() => setShowAllCommentsId(item.id)}
-                                className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
-                              >
-                                すべて見る (
-                                {(comments[item.id] ?? []).length}件)
-                              </button>
-                            )}
-                          {showAllCommentsId === item.id &&
-                            (comments[item.id] ?? []).length > COMMENTS_PREVIEW && (
-                              <button
-                                type="button"
-                                onClick={() => setShowAllCommentsId(null)}
-                                className="text-xs font-medium text-slate-500 hover:underline dark:text-slate-400"
-                              >
-                                閉じる
-                              </button>
-                            )}
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               );
