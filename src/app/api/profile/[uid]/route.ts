@@ -45,7 +45,7 @@ export async function GET(
         }
       : null;
 
-    // 公開ジャーナル取得（最大20件）
+    // 全ジャーナル取得（公開判定 & 統計計算に使用）
     let journals: {
       id: string;
       title?: string;
@@ -54,16 +54,43 @@ export async function GET(
       likes: string[];
       commentCount: number;
     }[] = [];
+    let totalJournalCount = 0;
+    let streakDays = 0;
+
     try {
-      const jSnap = await db
+      const allSnap = await db
         .collection("journals")
         .where("userId", "==", uid)
-        .where("isPublic", "==", true)
         .orderBy("createdAt", "desc")
-        .limit(20)
         .get();
+
+      totalJournalCount = allSnap.size;
+
+      // 継続日数計算（日付の重複を除いた連続日数）
+      const dateSet = new Set<string>();
+      for (const d of allSnap.docs) {
+        const data = d.data() as Record<string, unknown>;
+        const iso = toIso(data.createdAt);
+        // JST（UTC+9）で日付文字列に変換
+        const jstDate = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+        dateSet.add(jstDate.toISOString().slice(0, 10));
+      }
+      const today = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+      let cursor = today.toISOString().slice(0, 10);
+      while (dateSet.has(cursor)) {
+        streakDays++;
+        const prev = new Date(cursor);
+        prev.setDate(prev.getDate() - 1);
+        cursor = prev.toISOString().slice(0, 10);
+      }
+
+      // 公開ジャーナルのみ表示用に抽出（最大20件）
+      const publicDocs = allSnap.docs.filter(
+        (d) => (d.data() as Record<string, unknown>).isPublic === true
+      ).slice(0, 20);
+
       journals = await Promise.all(
-        jSnap.docs.map(async (d) => {
+        publicDocs.map(async (d) => {
           const data = d.data() as Record<string, unknown>;
           const rawLikes = data.likes;
           const likes = Array.isArray(rawLikes)
@@ -94,37 +121,16 @@ export async function GET(
           };
         })
       );
-    } catch {
+    } catch (e) {
+      console.error("[api/profile] journals fetch error:", e);
       journals = [];
-    }
-
-    // フォロワー数（自分をフォローしている人）
-    let followersCount = 0;
-    let followingCount = 0;
-    try {
-      const followersSnap = await db
-        .collection("follows")
-        .where("followedId", "==", uid)
-        .count()
-        .get();
-      followersCount = followersSnap.data().count ?? 0;
-
-      const followingSnap = await db
-        .collection("follows")
-        .where("followerId", "==", uid)
-        .count()
-        .get();
-      followingCount = followingSnap.data().count ?? 0;
-    } catch {
-      followersCount = 0;
-      followingCount = 0;
     }
 
     return NextResponse.json({
       profile,
       journals,
-      followersCount,
-      followingCount,
+      totalJournalCount,
+      streakDays,
     });
   } catch (e) {
     console.error("[api/profile]", e);

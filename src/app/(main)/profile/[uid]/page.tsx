@@ -52,8 +52,8 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [journals, setJournals] = useState<JournalItem[]>([]);
-  const [followersCount, setFollowersCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
+  const [totalJournalCount, setTotalJournalCount] = useState(0);
+  const [streakDays, setStreakDays] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -70,13 +70,13 @@ export default function ProfilePage() {
         const data = await res.json() as {
           profile: ProfileData | null;
           journals: JournalItem[];
-          followersCount: number;
-          followingCount: number;
+          totalJournalCount: number;
+          streakDays: number;
         };
         setProfile(data.profile);
         setJournals(data.journals ?? []);
-        setFollowersCount(data.followersCount ?? 0);
-        setFollowingCount(data.followingCount ?? 0);
+        setTotalJournalCount(data.totalJournalCount ?? 0);
+        setStreakDays(data.streakDays ?? 0);
       }
     } catch {
       // silent
@@ -124,7 +124,6 @@ export default function ProfilePage() {
         await deleteDoc(doc(db, "follows", followDocId));
         setIsFollowing(false);
         setFollowDocId(null);
-        setFollowersCount((c) => Math.max(0, c - 1));
       } else {
         const ref = await addDoc(collection(db, "follows"), {
           followerId: user.uid,
@@ -133,7 +132,6 @@ export default function ProfilePage() {
         });
         setIsFollowing(true);
         setFollowDocId(ref.id);
-        setFollowersCount((c) => c + 1);
       }
     } catch {
       // silent
@@ -243,16 +241,12 @@ export default function ProfilePage() {
               {/* 統計 */}
               <div className="flex gap-6 text-center sm:gap-8">
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-lg font-bold text-foreground">{journals.length}</span>
-                  <span className="text-xs text-muted-foreground">投稿</span>
+                  <span className="text-lg font-bold text-foreground">{totalJournalCount}</span>
+                  <span className="text-xs text-muted-foreground">総ジャーナル数</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-lg font-bold text-foreground">{followersCount}</span>
-                  <span className="text-xs text-muted-foreground">フォロワー</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-lg font-bold text-foreground">{followingCount}</span>
-                  <span className="text-xs text-muted-foreground">フォロー中</span>
+                  <span className="text-lg font-bold text-foreground">{streakDays}</span>
+                  <span className="text-xs text-muted-foreground">継続日数</span>
                 </div>
               </div>
 
