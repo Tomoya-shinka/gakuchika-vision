@@ -32,37 +32,37 @@ export function getFolderAccent(colorId?: string, fallbackIndex = 0) {
   return { accent: fb.accent, bgAccent: fb.bgAccent, borderAccent: fb.borderAccent };
 }
 
-/** 絵文字候補一覧（カテゴリ別） */
-export const EMOJI_OPTIONS = [
-  // 感情・気持ち
-  "😊","😄","😍","🥰","😎","🤩","🤗","😁","🙂","😇",
-  // 強さ・達成
-  "💪","🔥","✨","💫","⭐","🌟","💥","🎉","🏆","🥇",
+/** アイコン名候補一覧（Lucide React アイコン名） */
+export const FOLDER_ICON_NAMES = [
+  // 感情・達成
+  "Star","Heart","Smile","ThumbsUp","Zap","Flame","Sun","Sparkles",
+  "PartyPopper","Laugh","SmilePlus","HeartHandshake",
+  // 目標・評価
+  "Trophy","Target","Crown","Flag","CheckCircle2","Award","Medal",
+  "Gem","Ribbon","Badge",
   // 自然
-  "🌸","🌺","🌻","🌹","🌷","🍀","🌿","🌱","🌲","🌈",
-  "🌊","🌙","☀️","🌤️","🍁","🦋","🐝","🌍","🏔️","🌴",
-  // 勉強・仕事・成長
-  "📚","📖","✏️","📝","💡","🧠","🎓","💼","📊","🔬",
-  "🎯","🛠️","🔍","📌","🗒️","📐","🔭","💻","📱","⚙️",
+  "Leaf","TreePine","Mountain","Cloud","Moon","Waves","Flower2",
+  "Sprout","Snowflake","Wind","Rainbow","Sunset",
+  // 学び・仕事
+  "BookOpen","PenLine","Lightbulb","Brain","GraduationCap","Briefcase",
+  "Laptop","Search","BarChart2","Microscope","FlaskConical","Pencil",
+  "FileText","ClipboardList","Calculator",
   // 趣味・スポーツ
-  "🎮","🎵","🎨","🎭","🎬","⚽","🏀","🎾","🚴","🏃",
-  "🏊","🧘","🎸","🎹","🎷","🏹","🛹","🏄","🧗","⛷️",
-  // 食べ物
-  "🍎","🍊","🍋","🍇","🍓","🍕","🍜","🍣","🍰","☕",
-  // ハート・愛
-  "❤️","🧡","💛","💚","💙","💜","🖤","🤍","💕","💞",
-  "💓","💗","💖","💝","💘","🫶","👑","🎁","💌","🔑",
-  // フォルダ・整理
-  "📁","📂","🗂️","🗃️","🧩","🎲","🎪","🏠","🚀","💎",
-];
+  "Music","Palette","Camera","Dumbbell","Gamepad2","Guitar","Bike",
+  "Headphones","Clapperboard","Swords","Volleyball",
+  // 人・社会
+  "Users","Globe","Home","MessageCircle","Rocket","Gift","Key",
+  "Compass","Bell","Eye","Shield","Calendar","Bookmark","Coffee",
+  "Archive","Folder","Layers","Map","Anchor","Feather",
+] as const;
 
 const DEFAULT_COLOR_ORDER: ColorId[] = ["amber", "pink", "emerald", "sky"];
 
 export const DEFAULT_FOLDERS: SelfAnalysisFolder[] = [
-  { id: "small-wins", name: "小さな成功体験", emoji: "🌟", color: "amber",   description: "自分が達成感を感じたこと",          order: 0, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
-  { id: "fun",        name: "楽しかったこと", emoji: "❤️",  color: "pink",    description: "時間を忘れて没頭したこと",          order: 1, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
-  { id: "strength",   name: "強み",           emoji: "💪",  color: "emerald", description: "自分が得意なこと・人より上手なこと", order: 2, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
-  { id: "dream",      name: "夢",             emoji: "🌈",  color: "sky",     description: "将来やりたいこと・なりたい自分",    order: 3, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
+  { id: "small-wins", name: "小さな成功体験", emoji: "Sparkles", color: "amber",   description: "自分が達成感を感じたこと",          order: 0, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
+  { id: "fun",        name: "楽しかったこと", emoji: "Heart",     color: "pink",    description: "時間を忘れて没頭したこと",          order: 1, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
+  { id: "strength",   name: "強み",           emoji: "Zap",       color: "emerald", description: "自分が得意なこと・人より上手なこと", order: 2, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
+  { id: "dream",      name: "夢",             emoji: "Rocket",    color: "sky",     description: "将来やりたいこと・なりたい自分",    order: 3, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
 ];
 
 const STORAGE_KEY = "gakuchika-self-analysis-folders";

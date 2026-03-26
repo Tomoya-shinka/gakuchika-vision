@@ -16,7 +16,19 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { Info, Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2, FolderPlus } from "lucide-react";
+import {
+  Info, Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2, FolderPlus,
+  Star, Heart, Smile, ThumbsUp, Zap, Flame, Sun, Sparkles,
+  PartyPopper, Laugh, SmilePlus, HeartHandshake,
+  Trophy, Target, Crown, Flag, CheckCircle2, Award, Medal, Gem, Ribbon, Badge,
+  Leaf, TreePine, Mountain, Cloud, Moon, Waves, Flower2, Sprout, Snowflake, Wind, Rainbow, Sunset,
+  BookOpen, PenLine, Lightbulb, Brain, GraduationCap, Briefcase,
+  Laptop, Search, BarChart2, Microscope, FlaskConical, FileText, ClipboardList, Calculator,
+  Music, Palette, Camera, Dumbbell, Gamepad2, Guitar, Bike, Headphones, Clapperboard, Swords, Volleyball,
+  Users, Globe, Home, Bell, Eye, Shield, Calendar, Bookmark, Coffee,
+  Archive, Folder, Layers, Map, Anchor, Feather, Rocket, Gift, Key, Compass,
+  type LucideIcon,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,12 +58,32 @@ import {
   saveFolders,
   getFolderAccent,
   FOLDER_COLOR_OPTIONS,
-  EMOJI_OPTIONS,
+  FOLDER_ICON_NAMES,
   type SelfAnalysisFolder,
 } from "@/lib/self-analysis-folders";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
+
+// ─── Lucide アイコンマップ ────────────────────────────────────────────────
+const ICON_MAP: Record<string, LucideIcon> = {
+  Star, Heart, Smile, ThumbsUp, Zap, Flame, Sun, Sparkles,
+  PartyPopper, Laugh, SmilePlus, HeartHandshake,
+  Trophy, Target, Crown, Flag, CheckCircle2, Award, Medal, Gem, Ribbon, Badge,
+  Leaf, TreePine, Mountain, Cloud, Moon, Waves, Flower2, Sprout, Snowflake, Wind, Rainbow, Sunset,
+  BookOpen, PenLine, Lightbulb, Brain, GraduationCap, Briefcase,
+  Laptop, Search, BarChart2, Microscope, FlaskConical, FileText, ClipboardList, Calculator,
+  Music, Palette, Camera, Dumbbell, Gamepad2, Guitar, Bike, Headphones, Clapperboard, Swords, Volleyball,
+  Users, Globe, Home, Bell, Eye, Shield, Calendar, Bookmark, Coffee,
+  Archive, Folder, Layers, Map, Anchor, Feather, Rocket, Gift, Key, Compass,
+};
+
+/** フォルダアイコンを描画（Lucide名 or 絵文字フォールバック） */
+function FolderIcon({ name, className }: { name: string; className?: string }) {
+  const Icon = ICON_MAP[name];
+  if (Icon) return <Icon className={className ?? "size-5"} />;
+  return <span className="text-xl leading-none">{name}</span>;
+}
 
 // ─── フォルダ作成/編集フォーム ────────────────────────────────────────────
 interface FolderFormProps {
@@ -84,25 +116,32 @@ function FolderForm({
         />
       </div>
 
-      {/* 絵文字ピッカー */}
+      {/* アイコンピッカー */}
       <div>
-        <p className="mb-1.5 text-xs font-medium text-slate-500">
-          絵文字 <span className="ml-1 text-base">{folderEmoji}</span>
+        <p className="mb-1.5 flex items-center gap-2 text-xs font-medium text-slate-500">
+          アイコン
+          <span className="flex size-6 items-center justify-center rounded bg-slate-100 dark:bg-slate-800">
+            <FolderIcon name={folderEmoji} className="size-4" />
+          </span>
         </p>
-        <div className="grid max-h-40 grid-cols-10 gap-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-900/50">
-          {EMOJI_OPTIONS.map((emoji, i) => (
-            <button
-              key={`${emoji}-${i}`}
-              type="button"
-              onClick={() => setFolderEmoji(emoji)}
-              className={cn(
-                "flex size-8 items-center justify-center rounded text-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-700",
-                folderEmoji === emoji && "bg-sky-100 ring-2 ring-sky-400 dark:bg-sky-900/50"
-              )}
-            >
-              {emoji}
-            </button>
-          ))}
+        <div className="grid max-h-44 grid-cols-10 gap-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-900/50">
+          {FOLDER_ICON_NAMES.map((name) => {
+            const Icon = ICON_MAP[name];
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setFolderEmoji(name)}
+                title={name}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded transition-colors hover:bg-slate-200 dark:hover:bg-slate-700",
+                  folderEmoji === name && "bg-sky-100 ring-2 ring-sky-400 dark:bg-sky-900/50"
+                )}
+              >
+                {Icon ? <Icon className="size-4 text-slate-600 dark:text-slate-300" /> : null}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -243,7 +282,7 @@ export default function SelfAnalysisPage() {
 
   const resetFolderForm = () => {
     setFolderName("");
-    setFolderEmoji("📁");
+    setFolderEmoji("Folder");
     setFolderColor("sky");
     setFolderDescription("");
   };
@@ -257,7 +296,7 @@ export default function SelfAnalysisPage() {
     const newFolder: SelfAnalysisFolder = {
       id: crypto.randomUUID(),
       name: folderName.trim(),
-      emoji: folderEmoji || "📁",
+      emoji: folderEmoji || "Folder",
       color: folderColor,
       description: folderDescription.trim() || undefined,
       order: folders.length,
@@ -284,7 +323,7 @@ export default function SelfAnalysisPage() {
     const updated: SelfAnalysisFolder = {
       ...editingFolder,
       name: folderName.trim(),
-      emoji: folderEmoji || "📁",
+      emoji: folderEmoji || "Folder",
       color: folderColor,
       description: folderDescription.trim() || undefined,
     };
@@ -346,7 +385,7 @@ export default function SelfAnalysisPage() {
                   key={folder.id}
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${bgAccent} ${accent} ${borderAccent} border`}
                 >
-                  {folder.emoji} {folder.name} {counts[folder.id] ?? 0}件
+                  <FolderIcon name={folder.emoji} className="size-3" /> {folder.name} {counts[folder.id] ?? 0}件
                 </span>
               );
             })}
@@ -384,9 +423,7 @@ export default function SelfAnalysisPage() {
                       <div
                         className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${bgAccent} ${accent}`}
                       >
-                        <span className="text-xl" aria-hidden>
-                          {folder.emoji}
-                        </span>
+                        <FolderIcon name={folder.emoji} className="size-5" aria-hidden />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
