@@ -229,12 +229,9 @@ export default function ProfilePage() {
       </header>
 
       <main className="flex flex-1 flex-col overflow-auto bg-gray-50 dark:bg-slate-950/60">
-        {/* 青グラデーションバナー */}
-        <div className="h-24 shrink-0 bg-gradient-to-br from-sky-500 to-blue-700 dark:from-sky-800 dark:to-blue-950 sm:h-28" />
-
-        <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
-          {/* プロフィールヘッダー（バナーと重なる） */}
-          <div className="-mt-12 mb-6 flex flex-col items-center gap-3 sm:-mt-14 sm:flex-row sm:items-end sm:gap-8">
+        <div className="mx-auto w-full max-w-2xl px-4 pt-6 sm:px-6 sm:pt-8">
+          {/* プロフィールヘッダー */}
+          <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-8">
             {/* アバター（白リング） */}
             <div className="flex size-24 shrink-0 items-center justify-center rounded-full bg-sky-100 text-3xl font-bold text-sky-700 shadow-lg ring-4 ring-white dark:bg-sky-900/60 dark:text-sky-300 dark:ring-slate-900 sm:size-28">
               {initial}
