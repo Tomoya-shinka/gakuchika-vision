@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  BookOpen,
   CircleUser,
   GraduationCap,
   ChevronLeft,
@@ -44,11 +43,6 @@ const navItems = [
     title: "ホーム",
     url: "/",
     icon: Home,
-  },
-  {
-    title: "ジャーナル",
-    url: "/journal",
-    icon: BookOpen,
   },
   {
     title: "フィード",

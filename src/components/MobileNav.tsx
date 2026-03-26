@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, CircleUser, Sparkles, MessageCircle } from "lucide-react";
+import { Home, CircleUser, Sparkles, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCommentNotifications } from "@/hooks/useCommentNotifications";
 
@@ -11,11 +11,6 @@ const navItems = [
     title: "ホーム",
     url: "/",
     icon: Home,
-  },
-  {
-    title: "ジャーナル",
-    url: "/journal",
-    icon: BookOpen,
   },
   {
     title: "フィード",
