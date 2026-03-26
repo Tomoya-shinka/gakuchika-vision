@@ -21,7 +21,7 @@ import { stripHtml, formatDate } from "@/lib/journal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Loader2, MessageSquare, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Heart, Loader2, MessageCircle, MessageSquare, UserCheck, UserPlus } from "lucide-react";
 
 type ProfileData = {
   displayName: string;
@@ -318,10 +318,16 @@ export default function ProfilePage() {
                       <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                         {plain}
                       </p>
-                      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
                         <span>{formatDate(journal.createdAt)}</span>
-                        <span>❤ {journal.likes.length}</span>
-                        <span>💬 {journal.commentCount}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Heart className="size-3.5" />
+                          {journal.likes.length}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MessageCircle className="size-3.5" />
+                          {journal.commentCount}
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
