@@ -24,7 +24,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { stripHtml, formatDate } from "@/lib/journal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -32,7 +31,6 @@ import {
   Loader2,
   MessageCircle,
   MessageSquare,
-  Send,
   UserCheck,
   UserPlus,
 } from "lucide-react";
@@ -100,8 +98,6 @@ export default function ProfilePage() {
   // コメント関連
   const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
-  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
-  const [submittingCommentId, setSubmittingCommentId] = useState<string | null>(null);
   const [showAllCommentsId, setShowAllCommentsId] = useState<string | null>(null);
   // いいね関連
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
@@ -264,68 +260,6 @@ export default function ProfilePage() {
     }
     setExpandedCommentId(journalId);
     if (!comments[journalId]) loadComments(journalId);
-  };
-
-  // コメント投稿
-  const handleSubmitComment = async (journalId: string) => {
-    if (!user?.uid) return;
-    const text = (commentInputs[journalId] ?? "").trim();
-    if (!text) return;
-
-    // 投稿者の表示名取得
-    let displayName = "ユーザー";
-    try {
-      const db = getDb();
-      const mySnap = await getDoc(doc(db, "users", user.uid));
-      const myData = mySnap.data() as Record<string, unknown> | undefined;
-      displayName = String(myData?.displayName ?? "ユーザー");
-    } catch {
-      // silent
-    }
-
-    setSubmittingCommentId(journalId);
-    setCommentInputs((prev) => ({ ...prev, [journalId]: "" }));
-    try {
-      const db = getDb();
-      const commentsRef = collection(db, "journals", journalId, "comments");
-      const ref = await addDoc(commentsRef, {
-        userId: user.uid,
-        userName: displayName,
-        text,
-        createdAt: Timestamp.now(),
-      });
-      const added: Comment = {
-        id: ref.id,
-        userId: user.uid,
-        userName: displayName,
-        text,
-        createdAt: new Date().toISOString(),
-      };
-      setComments((prev) => {
-        const list = prev[journalId] ?? [];
-        return { ...prev, [journalId]: [added, ...list] };
-      });
-      // 通知（自分以外の投稿へのコメント）
-      const journalItem = journals.find((j) => j.id === journalId);
-      if (journalItem && journalItem.id !== user.uid) {
-        try {
-          await addDoc(collection(db, "notifications"), {
-            toUserId: uid,
-            fromUserId: user.uid,
-            journalId,
-            type: "comment",
-            read: false,
-            createdAt: Timestamp.now(),
-          });
-        } catch {
-          // silent
-        }
-      }
-    } catch {
-      setCommentInputs((prev) => ({ ...prev, [journalId]: text }));
-    } finally {
-      setSubmittingCommentId(null);
-    }
   };
 
   // いいね
@@ -533,47 +467,15 @@ export default function ProfilePage() {
                         </button>
                       </div>
 
-                      {/* コメント展開エリア */}
-                      {isExpanded && (
-                        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-                          {/* コメント入力 */}
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="コメントを追加..."
-                              value={commentInputs[journal.id] ?? ""}
-                              onChange={(e) =>
-                                setCommentInputs((prev) => ({
-                                  ...prev,
-                                  [journal.id]: e.target.value,
-                                }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handleSubmitComment(journal.id);
-                                }
-                              }}
-                              className="flex-1 text-sm"
-                            />
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleSubmitComment(journal.id)}
-                              disabled={
-                                !(commentInputs[journal.id] ?? "").trim() ||
-                                !!submittingCommentId
-                              }
-                            >
-                              {submittingCommentId === journal.id ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <Send className="size-4 text-sky-500" />
-                              )}
-                            </Button>
-                          </div>
-
-                          {/* コメント一覧 */}
-                          <div className="space-y-2">
+                      {/* コメント展開エリア（スムーズドロップアニメーション） */}
+                      <div
+                        className={cn(
+                          "grid transition-all duration-300 ease-in-out",
+                          isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                        )}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 dark:border-slate-800">
                             {journalComments === undefined ? (
                               <div className="flex justify-center py-2">
                                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -625,7 +527,7 @@ export default function ProfilePage() {
                               )}
                           </div>
                         </div>
-                      )}
+                      </div>
                     </CardContent>
                   </Card>
                 );
