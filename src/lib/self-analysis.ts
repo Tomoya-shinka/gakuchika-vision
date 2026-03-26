@@ -1,8 +1,9 @@
-export type SectionId = "small-wins" | "fun" | "strength" | "dream";
+// 後方互換性のために型エイリアスは残す。新規フォルダは任意の string ID を使用する
+export type SectionId = string;
 
 export interface SelfAnalysisItem {
   id: string;
-  sectionId: SectionId;
+  sectionId: string; // folderId として使用（既存の "small-wins" | "fun" | "strength" | "dream" も引き続き動作）
   text: string;
   createdAt: string;
 }
@@ -20,7 +21,7 @@ export function loadSelfAnalysisItems(): SelfAnalysisItem[] {
       .filter((x): x is Record<string, unknown> => x !== null && typeof x === "object")
       .map((x) => ({
         id: String(x.id ?? crypto.randomUUID()),
-        sectionId: String(x.sectionId ?? "small-wins") as SectionId,
+        sectionId: String(x.sectionId ?? "small-wins"),
         text: String(x.text ?? "").trim(),
         createdAt: String(x.createdAt ?? new Date().toISOString()),
       }))
@@ -36,17 +37,10 @@ export function saveSelfAnalysisItems(items: SelfAnalysisItem[]): void {
   localStorage.setItem(SELF_ANALYSIS_STORAGE_KEY, JSON.stringify(items));
 }
 
-export function getCountBySection(items: SelfAnalysisItem[]): Record<SectionId, number> {
-  const counts: Record<SectionId, number> = {
-    "small-wins": 0,
-    fun: 0,
-    strength: 0,
-    dream: 0,
-  };
+export function getCountBySection(items: SelfAnalysisItem[]): Record<string, number> {
+  const counts: Record<string, number> = {};
   for (const item of items) {
-    if (item.sectionId in counts) {
-      counts[item.sectionId as SectionId]++;
-    }
+    counts[item.sectionId] = (counts[item.sectionId] ?? 0) + 1;
   }
   return counts;
 }

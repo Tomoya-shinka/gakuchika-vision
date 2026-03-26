@@ -16,18 +16,20 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { Info, Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Info, Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2, FolderPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -35,23 +37,44 @@ import {
   saveSelfAnalysisItems,
   getCountBySection,
   type SelfAnalysisItem,
-  type SectionId,
 } from "@/lib/self-analysis";
 import {
   getSelfAnalysisFromFirestore,
-  SECTION_TO_CATEGORY,
 } from "@/lib/self-analysis-firestore";
-import { SELF_ANALYSIS_SECTIONS } from "@/lib/self-analysis-sections";
+import {
+  loadFolders,
+  saveFolders,
+  type SelfAnalysisFolder,
+} from "@/lib/self-analysis-folders";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
 
-const sections = SELF_ANALYSIS_SECTIONS;
+// フォルダのアクセントカラー（インデックスでローテーション）
+const FOLDER_ACCENTS = [
+  { accent: "text-amber-700 dark:text-amber-400", bgAccent: "bg-amber-50 dark:bg-amber-950/40", borderAccent: "border-amber-200/60 dark:border-amber-800/50" },
+  { accent: "text-pink-700 dark:text-pink-400", bgAccent: "bg-pink-50 dark:bg-pink-950/40", borderAccent: "border-pink-200/60 dark:border-pink-800/50" },
+  { accent: "text-emerald-700 dark:text-emerald-400", bgAccent: "bg-emerald-50 dark:bg-emerald-950/40", borderAccent: "border-emerald-200/60 dark:border-emerald-800/50" },
+  { accent: "text-sky-700 dark:text-sky-400", bgAccent: "bg-sky-50 dark:bg-sky-950/40", borderAccent: "border-sky-200/60 dark:border-sky-800/50" },
+  { accent: "text-purple-700 dark:text-purple-400", bgAccent: "bg-purple-50 dark:bg-purple-950/40", borderAccent: "border-purple-200/60 dark:border-purple-800/50" },
+  { accent: "text-rose-700 dark:text-rose-400", bgAccent: "bg-rose-50 dark:bg-rose-950/40", borderAccent: "border-rose-200/60 dark:border-rose-800/50" },
+];
 
 export default function SelfAnalysisPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<SelfAnalysisItem[]>([]);
-  const [addSection, setAddSection] = useState<SectionId | null>(null);
+  const [folders, setFolders] = useState<SelfAnalysisFolder[]>([]);
+  const [addSection, setAddSection] = useState<string | null>(null);
   const [addText, setAddText] = useState("");
+
+  // フォルダ作成/編集ダイアログ
+  const [showAddFolder, setShowAddFolder] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<SelfAnalysisFolder | null>(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderEmoji, setFolderEmoji] = useState("📁");
+  const [folderDescription, setFolderDescription] = useState("");
+
+  // フォルダ削除確認ダイアログ
+  const [deleteTargetFolder, setDeleteTargetFolder] = useState<SelfAnalysisFolder | null>(null);
 
   const load = useCallback(async () => {
     const localItems = loadSelfAnalysisItems();
@@ -94,10 +117,15 @@ export default function SelfAnalysisPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const loaded = loadFolders();
+    setFolders(loaded);
+  }, []);
+
   const counts = getCountBySection(items);
 
-  const handleAdd = (sectionId: SectionId) => {
-    setAddSection(sectionId);
+  const handleAdd = (folderId: string) => {
+    setAddSection(folderId);
     setAddText("");
   };
 
@@ -128,6 +156,77 @@ export default function SelfAnalysisPage() {
     saveSelfAnalysisItems(next);
   };
 
+  // ─── フォルダ操作 ───────────────────────────────────────────────────────
+
+  const handleOpenAddFolder = () => {
+    setFolderName("");
+    setFolderEmoji("📁");
+    setFolderDescription("");
+    setShowAddFolder(true);
+  };
+
+  const handleCreateFolder = () => {
+    const newFolder: SelfAnalysisFolder = {
+      id: crypto.randomUUID(),
+      name: folderName.trim(),
+      emoji: folderEmoji || "📁",
+      description: folderDescription.trim() || undefined,
+      order: folders.length,
+      createdAt: new Date().toISOString(),
+      isDefault: false,
+    };
+    const next = [...folders, newFolder];
+    setFolders(next);
+    saveFolders(next);
+    setShowAddFolder(false);
+    setFolderName("");
+    setFolderEmoji("📁");
+    setFolderDescription("");
+  };
+
+  const handleOpenEditFolder = (folder: SelfAnalysisFolder) => {
+    setEditingFolder(folder);
+    setFolderName(folder.name);
+    setFolderEmoji(folder.emoji);
+    setFolderDescription(folder.description ?? "");
+  };
+
+  const handleSaveEditFolder = () => {
+    if (!editingFolder || !folderName.trim()) return;
+    const updated: SelfAnalysisFolder = {
+      ...editingFolder,
+      name: folderName.trim(),
+      emoji: folderEmoji || "📁",
+      description: folderDescription.trim() || undefined,
+    };
+    const next = folders.map((f) => f.id === editingFolder.id ? updated : f);
+    setFolders(next);
+    saveFolders(next);
+    setEditingFolder(null);
+    setFolderName("");
+    setFolderEmoji("📁");
+    setFolderDescription("");
+  };
+
+  const handleDeleteFolder = (folder: SelfAnalysisFolder) => {
+    const hasItems = items.some((i) => i.sectionId === folder.id);
+    if (hasItems) {
+      setDeleteTargetFolder(folder);
+    } else {
+      doDeleteFolder(folder.id);
+    }
+  };
+
+  const doDeleteFolder = (folderId: string) => {
+    const nextFolders = folders.filter((f) => f.id !== folderId);
+    setFolders(nextFolders);
+    saveFolders(nextFolders);
+    const nextItems = items.filter((i) => i.sectionId !== folderId);
+    setItems(nextItems);
+    saveSelfAnalysisItems(nextItems);
+    setDeleteTargetFolder(null);
+  };
+
   return (
     <TooltipProvider>
       <div className="flex min-h-0 flex-1 flex-col bg-[#fafafa] px-4 pb-20 pt-6 dark:bg-slate-950/50 sm:px-6">
@@ -135,186 +234,362 @@ export default function SelfAnalysisPage() {
           <p className="text-xs font-medium uppercase tracking-wide text-sky-600 dark:text-sky-400">
             Self Discovery
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
-            自己分析シート
-          </h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
+              自己分析シート
+            </h1>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 gap-1.5 text-xs"
+              onClick={handleOpenAddFolder}
+            >
+              <FolderPlus className="size-3.5" />
+              フォルダを追加
+            </Button>
+          </div>
 
           {/* Stats Row */}
           <div className="flex flex-wrap gap-2">
-            {sections.map((s) => (
-              <span
-                key={s.id}
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.bgAccent} ${s.accent} ${s.borderAccent} border`}
-              >
-                {s.shortLabel} {counts[s.id]}件
-              </span>
-            ))}
+            {folders.map((folder, index) => {
+              const { accent, bgAccent, borderAccent } = FOLDER_ACCENTS[index % FOLDER_ACCENTS.length];
+              return (
+                <span
+                  key={folder.id}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${bgAccent} ${accent} ${borderAccent} border`}
+                >
+                  {folder.emoji} {folder.name} {counts[folder.id] ?? 0}件
+                </span>
+              );
+            })}
           </div>
         </header>
 
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 pb-8">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            const sectionItems = items.filter((i) => i.sectionId === section.id);
-
-            return (
-              <Card
-                key={section.id}
-                className={`flex flex-col overflow-hidden border bg-white/95 shadow-sm transition-colors dark:bg-slate-900/80 ${section.borderAccent} border`}
+          {folders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/60 py-16 text-center dark:border-slate-700 dark:bg-slate-900/40">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                フォルダがまだありません
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                className="mt-2 gap-1.5 text-sm text-sky-600"
+                onClick={handleOpenAddFolder}
               >
-                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <div
-                      className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${section.bgAccent} ${section.accent}`}
-                    >
-                      <span className="text-xl" aria-hidden>
-                        {section.emoji}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="truncate text-base font-semibold leading-tight">
-                          {section.title}
-                        </CardTitle>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className="shrink-0 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                              aria-label="このセクションの説明"
-                            >
-                              <Info className="size-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="right"
-                            className="max-w-[280px] text-xs"
-                          >
-                            {section.description}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        {section.subtitle}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 gap-1 px-2 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                      onClick={() => handleAdd(section.id)}
-                    >
-                      <Plus className="size-3.5" />
-                      追加
-                    </Button>
-                    <Button
-                      asChild
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className={`h-8 gap-1 border px-2.5 text-xs ${section.borderAccent} ${section.accent} hover:bg-white/80 dark:hover:bg-slate-800/80`}
-                    >
-                      <Link
-                        href={`/self-analysis/chat?category=${SECTION_TO_CATEGORY[section.id]}`}
-                      >
-                        <MessageCircle className="size-3.5" />
-                        AIと話して整理する
-                      </Link>
-                    </Button>
-                  </div>
-                </CardHeader>
+                <FolderPlus className="size-4" />
+                最初のフォルダを作成する
+              </Button>
+            </div>
+          ) : (
+            folders.map((folder, index) => {
+              const { accent, bgAccent, borderAccent } = FOLDER_ACCENTS[index % FOLDER_ACCENTS.length];
+              const sectionItems = items.filter((i) => i.sectionId === folder.id);
 
-                <CardContent className="pt-0">
-                  {sectionItems.length === 0 ? (
-                    <div
-                      className={`flex min-h-[100px] flex-col items-center justify-center rounded-lg border border-dashed ${section.borderAccent} ${section.bgAccent} py-8 text-center`}
-                    >
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        AIと話して、最初の1つを見つけましょう
-                      </p>
+              return (
+                <Card
+                  key={folder.id}
+                  className={`flex flex-col overflow-hidden border bg-white/95 shadow-sm transition-colors dark:bg-slate-900/80 ${borderAccent} border`}
+                >
+                  <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <div
+                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${bgAccent} ${accent}`}
+                      >
+                        <span className="text-xl" aria-hidden>
+                          {folder.emoji}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="truncate text-base font-semibold leading-tight">
+                            {folder.name}
+                          </CardTitle>
+                          {folder.description && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                                  aria-label="このフォルダの説明"
+                                >
+                                  <Info className="size-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="right"
+                                className="max-w-[280px] text-xs"
+                              >
+                                {folder.description}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                        {folder.description && (
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            {folder.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 px-2 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                        onClick={() => handleAdd(folder.id)}
+                      >
+                        <Plus className="size-3.5" />
+                        追加
+                      </Button>
                       <Button
                         asChild
-                        variant="link"
-                        className={`mt-2 text-sm ${section.accent}`}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={`h-8 gap-1 border px-2.5 text-xs ${borderAccent} ${accent} hover:bg-white/80 dark:hover:bg-slate-800/80`}
                       >
                         <Link
-                          href={`/self-analysis/chat?category=${SECTION_TO_CATEGORY[section.id]}`}
+                          href={`/self-analysis/chat?folderId=${encodeURIComponent(folder.id)}&folderName=${encodeURIComponent(folder.name)}`}
                         >
-                          <Icon className="mr-1.5 size-4" />
-                          AIと話して、最初の1つを見つけましょう
+                          <MessageCircle className="size-3.5" />
+                          AIと話して整理する
                         </Link>
                       </Button>
+                      {/* フォルダ操作メニュー */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex size-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                            aria-label="フォルダメニュー"
+                          >
+                            <MoreVertical className="size-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => handleOpenEditFolder(folder)}
+                          >
+                            <Pencil className="mr-2 size-3.5" />
+                            フォルダを編集
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteFolder(folder)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 size-3.5" />
+                            フォルダを削除
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  ) : (
-                    <div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        {sectionItems.slice(0, 4).map((item) => (
-                          <ItemCard
-                            key={item.id}
-                            item={item}
-                            accent={section.accent}
-                            bgAccent={section.bgAccent}
-                            borderAccent={section.borderAccent}
-                            onDelete={() => handleDelete(item.id)}
-                            onEdit={(newText) => handleEdit(item.id, newText)}
-                          />
-                        ))}
-                      </div>
-                      {sectionItems.length > 4 && (
-                        <Link
-                          href={`/self-analysis/${section.id}`}
-                          className={`mt-3 inline-flex items-center gap-0.5 text-xs font-medium ${section.accent} hover:underline`}
-                        >
-                          もっと見る（{sectionItems.length - 4}件）
-                          <ChevronRight className="size-3" />
-                        </Link>
-                      )}
-                    </div>
-                  )}
-                  {/* インライン追加フォーム */}
-                  {addSection === section.id ? (
-                    <div
-                      className={`mt-2 rounded-lg border ${section.borderAccent} ${section.bgAccent} p-3`}
-                    >
-                      <Input
-                        placeholder="例：テストで満点を取れた"
-                        value={addText}
-                        onChange={(e) => setAddText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveAdd();
-                          if (e.key === "Escape") setAddSection(null);
-                        }}
-                        className="mb-2"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
+                  </CardHeader>
+
+                  <CardContent className="pt-0">
+                    {sectionItems.length === 0 ? (
+                      <div
+                        className={`flex min-h-[100px] flex-col items-center justify-center rounded-lg border border-dashed ${borderAccent} ${bgAccent} py-8 text-center`}
+                      >
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          AIと話して、最初の1つを見つけましょう
+                        </p>
                         <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setAddSection(null)}
+                          asChild
+                          variant="link"
+                          className={`mt-2 text-sm ${accent}`}
                         >
-                          キャンセル
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveAdd}
-                          disabled={!addText.trim()}
-                        >
-                          追加
+                          <Link
+                            href={`/self-analysis/chat?folderId=${encodeURIComponent(folder.id)}&folderName=${encodeURIComponent(folder.name)}`}
+                          >
+                            <MessageCircle className="mr-1.5 size-4" />
+                            AIと話して、最初の1つを見つけましょう
+                          </Link>
                         </Button>
                       </div>
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    ) : (
+                      <div>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {sectionItems.slice(0, 4).map((item) => (
+                            <ItemCard
+                              key={item.id}
+                              item={item}
+                              accent={accent}
+                              bgAccent={bgAccent}
+                              borderAccent={borderAccent}
+                              onDelete={() => handleDelete(item.id)}
+                              onEdit={(newText) => handleEdit(item.id, newText)}
+                            />
+                          ))}
+                        </div>
+                        {sectionItems.length > 4 && (
+                          <Link
+                            href={`/self-analysis/${folder.id}`}
+                            className={`mt-3 inline-flex items-center gap-0.5 text-xs font-medium ${accent} hover:underline`}
+                          >
+                            もっと見る（{sectionItems.length - 4}件）
+                            <ChevronRight className="size-3" />
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                    {/* インライン追加フォーム */}
+                    {addSection === folder.id ? (
+                      <div
+                        className={`mt-2 rounded-lg border ${borderAccent} ${bgAccent} p-3`}
+                      >
+                        <Input
+                          placeholder="例：テストで満点を取れた"
+                          value={addText}
+                          onChange={(e) => setAddText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveAdd();
+                            if (e.key === "Escape") setAddSection(null);
+                          }}
+                          className="mb-2"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setAddSection(null)}
+                          >
+                            キャンセル
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleSaveAdd}
+                            disabled={!addText.trim()}
+                          >
+                            追加
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
         </main>
       </div>
 
+      {/* ─── フォルダ作成ダイアログ ─── */}
+      <Dialog open={showAddFolder} onOpenChange={setShowAddFolder}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新しいフォルダを作成</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="絵文字"
+                value={folderEmoji}
+                onChange={(e) => setFolderEmoji(e.target.value)}
+                className="w-20 text-center"
+                maxLength={2}
+              />
+              <Input
+                placeholder="フォルダ名（例：感謝したこと）"
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                className="flex-1"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && folderName.trim()) handleCreateFolder();
+                }}
+              />
+            </div>
+            <Input
+              placeholder="説明（任意）"
+              value={folderDescription}
+              onChange={(e) => setFolderDescription(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowAddFolder(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={!folderName.trim()}>
+              作成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── フォルダ編集ダイアログ ─── */}
+      <Dialog open={!!editingFolder} onOpenChange={(o) => { if (!o) setEditingFolder(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>フォルダを編集</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="絵文字"
+                value={folderEmoji}
+                onChange={(e) => setFolderEmoji(e.target.value)}
+                className="w-20 text-center"
+                maxLength={2}
+              />
+              <Input
+                placeholder="フォルダ名"
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                className="flex-1"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && folderName.trim()) handleSaveEditFolder();
+                }}
+              />
+            </div>
+            <Input
+              placeholder="説明（任意）"
+              value={folderDescription}
+              onChange={(e) => setFolderDescription(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditingFolder(null)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleSaveEditFolder} disabled={!folderName.trim()}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── フォルダ削除確認ダイアログ ─── */}
+      <Dialog open={!!deleteTargetFolder} onOpenChange={(o) => { if (!o) setDeleteTargetFolder(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>フォルダを削除しますか？</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            「{deleteTargetFolder?.name}」を削除すると、このフォルダ内の{" "}
+            <span className="font-semibold text-destructive">
+              {deleteTargetFolder ? (counts[deleteTargetFolder.id] ?? 0) : 0}件のアイテム
+            </span>
+            もすべて削除されます。この操作は元に戻せません。
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteTargetFolder(null)}>
+              キャンセル
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTargetFolder && doDeleteFolder(deleteTargetFolder.id)}
+            >
+              削除する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

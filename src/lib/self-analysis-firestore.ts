@@ -4,10 +4,14 @@ import {
   getDocs,
   query,
   orderBy,
+  setDoc,
+  deleteDoc,
+  doc,
   Timestamp,
   type Firestore,
 } from "firebase/firestore";
 import type { SectionId } from "./self-analysis";
+import type { SelfAnalysisFolder } from "./self-analysis-folders";
 
 export interface FirestoreSelfAnalysisItem {
   id: string;
@@ -23,7 +27,7 @@ const CATEGORY_TO_SECTION: Record<string, SectionId> = {
   dream: "dream",
 };
 
-export const SECTION_TO_CATEGORY: Record<SectionId, string> = {
+export const SECTION_TO_CATEGORY: Record<string, string> = {
   "small-wins": "success",
   fun: "enjoy",
   strength: "strength",
@@ -72,4 +76,57 @@ export async function getSelfAnalysisFromFirestore(
       createdAt,
     };
   });
+}
+
+// ─── フォルダ CRUD ───────────────────────────────────────────────────────────
+
+export async function getFoldersFromFirestore(
+  db: Firestore,
+  userId: string
+): Promise<SelfAnalysisFolder[]> {
+  const col = collection(db, "users", userId, "self_analysis_folders");
+  const q = query(col, orderBy("order", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      name: String(data.name ?? ""),
+      emoji: String(data.emoji ?? "📁"),
+      description: data.description ? String(data.description) : undefined,
+      order: typeof data.order === "number" ? data.order : 0,
+      createdAt:
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toDate().toISOString()
+          : typeof data.createdAt === "string"
+            ? data.createdAt
+            : new Date().toISOString(),
+      isDefault: data.isDefault === true,
+    };
+  });
+}
+
+export async function saveFolderToFirestore(
+  db: Firestore,
+  userId: string,
+  folder: SelfAnalysisFolder
+): Promise<void> {
+  const ref = doc(db, "users", userId, "self_analysis_folders", folder.id);
+  await setDoc(ref, {
+    name: folder.name,
+    emoji: folder.emoji,
+    description: folder.description ?? null,
+    order: folder.order,
+    createdAt: folder.createdAt,
+    isDefault: folder.isDefault,
+  });
+}
+
+export async function deleteFolderFromFirestore(
+  db: Firestore,
+  userId: string,
+  folderId: string
+): Promise<void> {
+  const ref = doc(db, "users", userId, "self_analysis_folders", folderId);
+  await deleteDoc(ref);
 }

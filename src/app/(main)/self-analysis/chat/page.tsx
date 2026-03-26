@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 const START_MARKER = "__COACH_START__";
 
-const VALID_SECTIONS: SectionId[] = [
+const DEFAULT_VALID_SECTIONS: SectionId[] = [
   "small-wins",
   "fun",
   "strength",
@@ -75,16 +75,22 @@ export default function SelfAnalysisChatPage() {
   const { user, loading: authLoading } = useAuth();
 
   const categoryParam = searchParams.get("category");
+  const folderIdParam = searchParams.get("folderId");
+  const folderNameParam = searchParams.get("folderName");
   const sectionParam = searchParams.get("section") as SectionId | null;
+
+  // folderId が指定されている場合はそれを優先して使用（カスタムフォルダ対応）
+  // なければ従来の category / section パラメータにフォールバック
   const sectionIdFromCategory = categoryToSectionId(categoryParam);
   const sectionIdFromParam =
-    sectionParam && VALID_SECTIONS.includes(sectionParam)
+    sectionParam && DEFAULT_VALID_SECTIONS.includes(sectionParam)
       ? sectionParam
       : null;
-  const validSection = sectionIdFromParam ?? sectionIdFromCategory;
+  const validSection = folderIdParam ?? sectionIdFromParam ?? sectionIdFromCategory;
 
+  // タイトル: folderName パラメータ > SELF_ANALYSIS_SECTIONS の title > デフォルト
   const section = SELF_ANALYSIS_SECTIONS.find((s) => s.id === validSection);
-  const sectionTitle = section?.title ?? "小さな成功体験";
+  const sectionTitle = folderNameParam ?? section?.title ?? "自己分析";
 
   const [input, setInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -101,9 +107,12 @@ export default function SelfAnalysisChatPage() {
     () =>
       new DefaultChatTransport({
         api: "/api/self-analysis/chat",
-        body: { sectionId: validSection ?? "small-wins" },
+        body: {
+          sectionId: validSection ?? "small-wins",
+          folderName: folderNameParam ?? undefined,
+        },
       }),
-    [validSection]
+    [validSection, folderNameParam]
   );
   const {
     messages,
