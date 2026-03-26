@@ -90,9 +90,9 @@ function FolderForm({
           絵文字 <span className="ml-1 text-base">{folderEmoji}</span>
         </p>
         <div className="grid max-h-40 grid-cols-10 gap-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-900/50">
-          {EMOJI_OPTIONS.map((emoji) => (
+          {EMOJI_OPTIONS.map((emoji, i) => (
             <button
-              key={emoji}
+              key={`${emoji}-${i}`}
               type="button"
               onClick={() => setFolderEmoji(emoji)}
               className={cn(
