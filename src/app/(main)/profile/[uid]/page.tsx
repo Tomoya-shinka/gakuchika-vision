@@ -310,16 +310,20 @@ export default function ProfilePage() {
                     className="border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
                   >
                     <CardContent className="px-5 py-4">
-                      {journal.title && (
-                        <p className="mb-1.5 text-sm font-semibold text-foreground">
-                          {journal.title}
+                      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">
+                          {journal.title || formatDate(journal.createdAt)}
                         </p>
-                      )}
+                        {journal.title && (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {formatDate(journal.createdAt)}
+                          </span>
+                        )}
+                      </div>
                       <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                         {plain}
                       </p>
                       <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>{formatDate(journal.createdAt)}</span>
                         <span className="inline-flex items-center gap-1">
                           <Heart className="size-3.5" />
                           {journal.likes.length}
