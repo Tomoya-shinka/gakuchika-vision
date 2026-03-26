@@ -44,20 +44,102 @@ import {
 import {
   loadFolders,
   saveFolders,
+  getFolderAccent,
+  FOLDER_COLOR_OPTIONS,
+  EMOJI_OPTIONS,
   type SelfAnalysisFolder,
 } from "@/lib/self-analysis-folders";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
+import { cn } from "@/lib/utils";
 
-// フォルダのアクセントカラー（インデックスでローテーション）
-const FOLDER_ACCENTS = [
-  { accent: "text-amber-700 dark:text-amber-400", bgAccent: "bg-amber-50 dark:bg-amber-950/40", borderAccent: "border-amber-200/60 dark:border-amber-800/50" },
-  { accent: "text-pink-700 dark:text-pink-400", bgAccent: "bg-pink-50 dark:bg-pink-950/40", borderAccent: "border-pink-200/60 dark:border-pink-800/50" },
-  { accent: "text-emerald-700 dark:text-emerald-400", bgAccent: "bg-emerald-50 dark:bg-emerald-950/40", borderAccent: "border-emerald-200/60 dark:border-emerald-800/50" },
-  { accent: "text-sky-700 dark:text-sky-400", bgAccent: "bg-sky-50 dark:bg-sky-950/40", borderAccent: "border-sky-200/60 dark:border-sky-800/50" },
-  { accent: "text-purple-700 dark:text-purple-400", bgAccent: "bg-purple-50 dark:bg-purple-950/40", borderAccent: "border-purple-200/60 dark:border-purple-800/50" },
-  { accent: "text-rose-700 dark:text-rose-400", bgAccent: "bg-rose-50 dark:bg-rose-950/40", borderAccent: "border-rose-200/60 dark:border-rose-800/50" },
-];
+// ─── フォルダ作成/編集フォーム ────────────────────────────────────────────
+interface FolderFormProps {
+  folderName: string; setFolderName: (v: string) => void;
+  folderEmoji: string; setFolderEmoji: (v: string) => void;
+  folderColor: string; setFolderColor: (v: string) => void;
+  folderDescription: string; setFolderDescription: (v: string) => void;
+  onKeyDownName?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  autoFocus?: boolean;
+}
+
+function FolderForm({
+  folderName, setFolderName,
+  folderEmoji, setFolderEmoji,
+  folderColor, setFolderColor,
+  folderDescription, setFolderDescription,
+  onKeyDownName, autoFocus,
+}: FolderFormProps) {
+  return (
+    <div className="space-y-4">
+      {/* フォルダ名 */}
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-slate-500">フォルダ名</p>
+        <Input
+          placeholder="例：感謝したこと"
+          value={folderName}
+          onChange={(e) => setFolderName(e.target.value)}
+          autoFocus={autoFocus}
+          onKeyDown={onKeyDownName}
+        />
+      </div>
+
+      {/* 絵文字ピッカー */}
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-slate-500">
+          絵文字 <span className="ml-1 text-base">{folderEmoji}</span>
+        </p>
+        <div className="grid max-h-40 grid-cols-10 gap-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-900/50">
+          {EMOJI_OPTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => setFolderEmoji(emoji)}
+              className={cn(
+                "flex size-8 items-center justify-center rounded text-lg transition-colors hover:bg-slate-200 dark:hover:bg-slate-700",
+                folderEmoji === emoji && "bg-sky-100 ring-2 ring-sky-400 dark:bg-sky-900/50"
+              )}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* カラーパレット */}
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-slate-500">カラー</p>
+        <div className="flex flex-wrap gap-2">
+          {FOLDER_COLOR_OPTIONS.map((color) => (
+            <button
+              key={color.id}
+              type="button"
+              onClick={() => setFolderColor(color.id)}
+              title={color.label}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-full transition-all",
+                color.swatch,
+                folderColor === color.id
+                  ? "ring-2 ring-offset-2 ring-slate-500 scale-110"
+                  : "opacity-70 hover:opacity-100"
+              )}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* 説明（任意） */}
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-slate-500">説明（任意）</p>
+        <Input
+          placeholder="例：毎日の小さな気づきを記録"
+          value={folderDescription}
+          onChange={(e) => setFolderDescription(e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function SelfAnalysisPage() {
   const { user } = useAuth();
@@ -71,6 +153,7 @@ export default function SelfAnalysisPage() {
   const [editingFolder, setEditingFolder] = useState<SelfAnalysisFolder | null>(null);
   const [folderName, setFolderName] = useState("");
   const [folderEmoji, setFolderEmoji] = useState("📁");
+  const [folderColor, setFolderColor] = useState("sky");
   const [folderDescription, setFolderDescription] = useState("");
 
   // フォルダ削除確認ダイアログ
@@ -158,10 +241,15 @@ export default function SelfAnalysisPage() {
 
   // ─── フォルダ操作 ───────────────────────────────────────────────────────
 
-  const handleOpenAddFolder = () => {
+  const resetFolderForm = () => {
     setFolderName("");
     setFolderEmoji("📁");
+    setFolderColor("sky");
     setFolderDescription("");
+  };
+
+  const handleOpenAddFolder = () => {
+    resetFolderForm();
     setShowAddFolder(true);
   };
 
@@ -170,6 +258,7 @@ export default function SelfAnalysisPage() {
       id: crypto.randomUUID(),
       name: folderName.trim(),
       emoji: folderEmoji || "📁",
+      color: folderColor,
       description: folderDescription.trim() || undefined,
       order: folders.length,
       createdAt: new Date().toISOString(),
@@ -179,15 +268,14 @@ export default function SelfAnalysisPage() {
     setFolders(next);
     saveFolders(next);
     setShowAddFolder(false);
-    setFolderName("");
-    setFolderEmoji("📁");
-    setFolderDescription("");
+    resetFolderForm();
   };
 
   const handleOpenEditFolder = (folder: SelfAnalysisFolder) => {
     setEditingFolder(folder);
     setFolderName(folder.name);
     setFolderEmoji(folder.emoji);
+    setFolderColor(folder.color ?? "sky");
     setFolderDescription(folder.description ?? "");
   };
 
@@ -197,15 +285,14 @@ export default function SelfAnalysisPage() {
       ...editingFolder,
       name: folderName.trim(),
       emoji: folderEmoji || "📁",
+      color: folderColor,
       description: folderDescription.trim() || undefined,
     };
     const next = folders.map((f) => f.id === editingFolder.id ? updated : f);
     setFolders(next);
     saveFolders(next);
     setEditingFolder(null);
-    setFolderName("");
-    setFolderEmoji("📁");
-    setFolderDescription("");
+    resetFolderForm();
   };
 
   const handleDeleteFolder = (folder: SelfAnalysisFolder) => {
@@ -253,7 +340,7 @@ export default function SelfAnalysisPage() {
           {/* Stats Row */}
           <div className="flex flex-wrap gap-2">
             {folders.map((folder, index) => {
-              const { accent, bgAccent, borderAccent } = FOLDER_ACCENTS[index % FOLDER_ACCENTS.length];
+              const { accent, bgAccent, borderAccent } = getFolderAccent(folder.color, index);
               return (
                 <span
                   key={folder.id}
@@ -284,7 +371,7 @@ export default function SelfAnalysisPage() {
             </div>
           ) : (
             folders.map((folder, index) => {
-              const { accent, bgAccent, borderAccent } = FOLDER_ACCENTS[index % FOLDER_ACCENTS.length];
+              const { accent, bgAccent, borderAccent } = getFolderAccent(folder.color, index);
               const sectionItems = items.filter((i) => i.sectionId === folder.id);
 
               return (
@@ -480,86 +567,50 @@ export default function SelfAnalysisPage() {
 
       {/* ─── フォルダ作成ダイアログ ─── */}
       <Dialog open={showAddFolder} onOpenChange={setShowAddFolder}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>新しいフォルダを作成</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                placeholder="絵文字"
-                value={folderEmoji}
-                onChange={(e) => setFolderEmoji(e.target.value)}
-                className="w-20 text-center"
-                maxLength={2}
-              />
-              <Input
-                placeholder="フォルダ名（例：感謝したこと）"
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-                className="flex-1"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && folderName.trim()) handleCreateFolder();
-                }}
-              />
-            </div>
-            <Input
-              placeholder="説明（任意）"
-              value={folderDescription}
-              onChange={(e) => setFolderDescription(e.target.value)}
-            />
-          </div>
+          <FolderForm
+            folderName={folderName}
+            setFolderName={setFolderName}
+            folderEmoji={folderEmoji}
+            setFolderEmoji={setFolderEmoji}
+            folderColor={folderColor}
+            setFolderColor={setFolderColor}
+            folderDescription={folderDescription}
+            setFolderDescription={setFolderDescription}
+            onKeyDownName={(e) => { if (e.key === "Enter" && folderName.trim()) handleCreateFolder(); }}
+            autoFocus
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowAddFolder(false)}>
-              キャンセル
-            </Button>
-            <Button onClick={handleCreateFolder} disabled={!folderName.trim()}>
-              作成
-            </Button>
+            <Button variant="ghost" onClick={() => setShowAddFolder(false)}>キャンセル</Button>
+            <Button onClick={handleCreateFolder} disabled={!folderName.trim()}>作成</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ─── フォルダ編集ダイアログ ─── */}
       <Dialog open={!!editingFolder} onOpenChange={(o) => { if (!o) setEditingFolder(null); }}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>フォルダを編集</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                placeholder="絵文字"
-                value={folderEmoji}
-                onChange={(e) => setFolderEmoji(e.target.value)}
-                className="w-20 text-center"
-                maxLength={2}
-              />
-              <Input
-                placeholder="フォルダ名"
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-                className="flex-1"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && folderName.trim()) handleSaveEditFolder();
-                }}
-              />
-            </div>
-            <Input
-              placeholder="説明（任意）"
-              value={folderDescription}
-              onChange={(e) => setFolderDescription(e.target.value)}
-            />
-          </div>
+          <FolderForm
+            folderName={folderName}
+            setFolderName={setFolderName}
+            folderEmoji={folderEmoji}
+            setFolderEmoji={setFolderEmoji}
+            folderColor={folderColor}
+            setFolderColor={setFolderColor}
+            folderDescription={folderDescription}
+            setFolderDescription={setFolderDescription}
+            onKeyDownName={(e) => { if (e.key === "Enter" && folderName.trim()) handleSaveEditFolder(); }}
+            autoFocus
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditingFolder(null)}>
-              キャンセル
-            </Button>
-            <Button onClick={handleSaveEditFolder} disabled={!folderName.trim()}>
-              保存
-            </Button>
+            <Button variant="ghost" onClick={() => setEditingFolder(null)}>キャンセル</Button>
+            <Button onClick={handleSaveEditFolder} disabled={!folderName.trim()}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
