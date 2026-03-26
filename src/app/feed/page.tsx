@@ -452,6 +452,7 @@ export default function FeedPage() {
       setDmLoading(false);
       return;
     }
+    let isActive = true;
     const db = getDb();
     const q = query(
       collection(db, "conversations"),
@@ -461,6 +462,7 @@ export default function FeedPage() {
     const unsub = onSnapshot(
       q,
       (snap) => {
+        if (!isActive) return;
         const list: Conversation[] = snap.docs.map((d) => {
           const data = d.data() as Record<string, unknown>;
           return {
@@ -474,9 +476,12 @@ export default function FeedPage() {
         setConversations(list);
         setDmLoading(false);
       },
-      () => setDmLoading(false)
+      () => { if (isActive) setDmLoading(false); }
     );
-    return unsub;
+    return () => {
+      isActive = false;
+      unsub();
+    };
   }, [user?.uid]);
 
 

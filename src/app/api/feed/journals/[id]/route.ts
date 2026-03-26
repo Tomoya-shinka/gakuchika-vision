@@ -42,13 +42,13 @@ function calcUniversityDay(enrollment: unknown, createdAt: string): number | und
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!hasAdminConfig()) {
     return NextResponse.json({ error: "Firebase Admin 未設定" }, { status: 503 });
   }
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const db = getAdminDb();

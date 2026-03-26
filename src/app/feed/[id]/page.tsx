@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   collection,
   doc,
+  getDoc,
   addDoc,
   updateDoc,
   arrayUnion,
@@ -202,8 +203,7 @@ export default function FeedDetailPage() {
     // 投稿者名取得（Firestoreのusersドキュメントから）
     let displayName = "ユーザー";
     try {
-      const { getDoc, doc: fsDoc } = await import("firebase/firestore");
-      const snap = await getDoc(fsDoc(getDb(), "users", user.uid));
+      const snap = await getDoc(doc(getDb(), "users", user.uid));
       const d = snap.data() as Record<string, unknown> | undefined;
       displayName = typeof d?.displayName === "string" ? d.displayName : "ユーザー";
     } catch {
