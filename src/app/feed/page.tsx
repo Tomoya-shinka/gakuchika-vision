@@ -441,9 +441,10 @@ export default function FeedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // フィードを開いたら通知を既読化
+  // フィードを開いたら通知を既読化（Firestoreの初期化完了後に実行するため遅延）
   useEffect(() => {
-    markAllRead();
+    const t = setTimeout(() => { void markAllRead(); }, 500);
+    return () => clearTimeout(t);
   }, [markAllRead]);
 
   // DMの会話一覧をリアルタイムで取得

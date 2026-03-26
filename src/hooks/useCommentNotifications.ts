@@ -27,6 +27,7 @@ export function useCommentNotifications() {
       setHasUnread(false);
       return;
     }
+    let isActive = true;
     const db = getDb();
     const q = query(
       collection(db, "notifications"),
@@ -34,12 +35,20 @@ export function useCommentNotifications() {
       where("type", "==", "comment"),
       where("read", "==", false)
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => setHasUnread(!snap.empty),
-      () => setHasUnread(false) // エラー時は非表示
-    );
-    return unsub;
+    let unsub: (() => void) | undefined;
+    try {
+      unsub = onSnapshot(
+        q,
+        (snap) => { if (isActive) setHasUnread(!snap.empty); },
+        () => { if (isActive) setHasUnread(false); }
+      );
+    } catch {
+      // Firestore内部エラー時は無視（開発のStrict Mode二重マウント対策）
+    }
+    return () => {
+      isActive = false;
+      try { unsub?.(); } catch { /* ignore */ }
+    };
   }, [user?.uid]);
 
   const markAllRead = useCallback(async () => {
