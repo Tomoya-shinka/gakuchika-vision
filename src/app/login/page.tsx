@@ -84,8 +84,8 @@ export default function LoginPage() {
           <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <GraduationCap className="size-7" />
           </div>
-          <h1 className="text-xl font-semibold text-foreground">ガクチカビジョン</h1>
-          <p className="text-sm text-muted-foreground">大学生向け ガクチカ蓄積アプリ</p>
+          <h1 className="text-xl font-semibold text-foreground">Life Vision Journal</h1>
+          <p className="text-sm text-muted-foreground">自己分析と目標達成をサポートするジャーナルアプリ</p>
         </div>
 
         <div className="space-y-5">

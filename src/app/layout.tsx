@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ガクチカビジョン",
-  description: "大学生向けガクチカ蓄積アプリ",
+  title: "Life Vision Journal",
+  description: "自己分析と目標達成をサポートするジャーナルアプリ",
 };
 
 export default function RootLayout({
