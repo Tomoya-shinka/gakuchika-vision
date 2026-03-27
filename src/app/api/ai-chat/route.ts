@@ -177,7 +177,7 @@ function buildSystemPrompt(
   // 振り返りモード: ジャーナルのみ使用
   if (summaryPeriod) {
     const label = getPeriodLabel(summaryPeriod);
-    let prompt = `あなたは「Life Vision Journal」アプリのAIアシスタントです。
+    let prompt = `あなたは「LIFE VISION JOURNAL」アプリのAIアシスタントです。
 ユーザーの自己理解・目標達成・日々の成長をサポートします。
 ユーザーが${label}の振り返りを求めています。以下の${label}のジャーナル記録のみを参照して、まとめを作成してください。
 
@@ -202,7 +202,7 @@ function buildSystemPrompt(
   }
 
   // 通常モード: ジャーナル + 自己分析 + 目標を使用
-  let prompt = `あなたは「Life Vision Journal」アプリのAIアシスタントです。
+  let prompt = `あなたは「LIFE VISION JOURNAL」アプリのAIアシスタントです。
 ユーザーのジャーナル・自己分析・目標設定をもとに、自己理解を深め、
 仕事・学業・キャリア・趣味・生活など各自の目標に向けた振り返りとアドバイスをサポートします。
 学生から社会人・キャリアチェンジを考える方まで、幅広いユーザーを支援します。

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Life Vision Journal",
+  title: "LIFE VISION JOURNAL",
   description: "自己分析と目標達成をサポートするジャーナルアプリ",
 };
 

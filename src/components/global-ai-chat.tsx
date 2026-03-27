@@ -263,7 +263,7 @@ export function GlobalAiChat() {
                 )}>
                   {mode === "coaching"
                     ? COACHING_WELCOME_MESSAGE
-                    : "こんにちは！Life Vision JournalのAIアシスタントです。ジャーナルや自己分析・目標データをもとに、あなたの自己理解と目標達成をサポートします。何でもお気軽にどうぞ！"}
+                    : "こんにちは！LIFE VISION JOURNALのAIアシスタントです。ジャーナルや自己分析・目標データをもとに、あなたの自己理解と目標達成をサポートします。何でもお気軽にどうぞ！"}
                 </div>
               </div>
 

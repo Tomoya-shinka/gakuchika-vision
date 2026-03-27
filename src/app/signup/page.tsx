@@ -98,7 +98,7 @@ export default function SignupPage() {
           <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <GraduationCap className="size-7" />
           </div>
-          <h1 className="text-xl font-semibold text-foreground">Life Vision Journal</h1>
+          <h1 className="text-xl font-semibold text-foreground">LIFE VISION JOURNAL</h1>
           <p className="text-sm text-muted-foreground">新規アカウント作成</p>
         </div>
 

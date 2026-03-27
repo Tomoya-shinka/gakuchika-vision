@@ -44,7 +44,7 @@ export const COACHING_WELCOME_MESSAGE =
 /**
  * コーチングモードのシステムプロンプト（末尾にユーザーデータが動的に追加される）
  */
-export const COACHING_SYSTEM_PROMPT = `あなたは「Life Vision Journal」アプリのパーソナルコーチです。
+export const COACHING_SYSTEM_PROMPT = `あなたは「LIFE VISION JOURNAL」アプリのパーソナルコーチです。
 GROWモデル（Goal・Reality・Options・Will）とソクラテス式問答を活用して、
 ユーザーが自分自身で答えを見つけられるよう支援します。
 学生から社会人・キャリアチェンジを考える方・自己成長を目指す方まで、
