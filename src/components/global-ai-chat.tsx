@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { loadEntries, stripHtml } from "@/lib/journal";
 import { loadSelfAnalysisItems } from "@/lib/self-analysis";
+import { loadGoals } from "@/lib/goals";
+import { loadFolders } from "@/lib/self-analysis-folders";
 import {
   type ChatMode,
   DEFAULT_QUICK_ACTIONS,
@@ -27,7 +29,13 @@ import {
 
 type ContextData = {
   journals: { title?: string; contentPlain: string; createdAt: string }[];
-  selfAnalysis: { sectionId: string; text: string }[];
+  selfAnalysis: { folderName: string; text: string }[];
+  goals: {
+    longTermVision?: string;
+    oneYearGoal?: string;
+    oneMonthGoal?: string;
+    smallSteps?: { label: string; done: boolean; dueDate?: string }[];
+  };
 };
 
 function buildContext(): ContextData {
@@ -38,11 +46,32 @@ function buildContext(): ContextData {
       contentPlain: stripHtml(j.content).slice(0, 600),
       createdAt: j.createdAt,
     }));
+
+  // フォルダ名を解決（sectionId → フォルダ表示名）
+  const folders = loadFolders();
+  const folderMap = new Map(folders.map((f) => [f.id, f.name]));
   const selfAnalysis = loadSelfAnalysisItems().map((s) => ({
-    sectionId: s.sectionId,
+    folderName: folderMap.get(s.sectionId) ?? s.sectionId,
     text: s.text,
   }));
-  return { journals, selfAnalysis };
+
+  // 目標データ
+  const goalsData = loadGoals();
+  const goals: ContextData["goals"] = {
+    longTermVision: goalsData.longTermVision.content || undefined,
+    oneYearGoal: goalsData.oneYearGoal.content || undefined,
+    oneMonthGoal: goalsData.oneMonthGoal.content || undefined,
+    smallSteps:
+      goalsData.smallSteps.length > 0
+        ? goalsData.smallSteps.map((s) => ({
+            label: s.label,
+            done: s.done,
+            dueDate: s.dueDate,
+          }))
+        : undefined,
+  };
+
+  return { journals, selfAnalysis, goals };
 }
 
 export function GlobalAiChat() {
@@ -52,6 +81,7 @@ export function GlobalAiChat() {
   const [contextData, setContextData] = useState<ContextData>({
     journals: [],
     selfAnalysis: [],
+    goals: {},
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

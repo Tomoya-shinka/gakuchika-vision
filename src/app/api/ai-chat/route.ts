@@ -2,7 +2,6 @@ import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
 import {
   type ChatMode,
-  SECTION_LABELS,
   COACHING_SYSTEM_PROMPT,
 } from "@/lib/ai-prompts";
 
@@ -15,13 +14,21 @@ interface JournalContext {
 }
 
 interface SelfAnalysisContext {
-  sectionId: string;
+  folderName: string;
   text: string;
+}
+
+interface GoalsContext {
+  longTermVision?: string;
+  oneYearGoal?: string;
+  oneMonthGoal?: string;
+  smallSteps?: { label: string; done: boolean; dueDate?: string }[];
 }
 
 interface ChatContext {
   journals?: JournalContext[];
   selfAnalysis?: SelfAnalysisContext[];
+  goals?: GoalsContext;
 }
 
 type SummaryPeriod = "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | null;
@@ -101,6 +108,43 @@ function getPeriodLabel(period: SummaryPeriod): string {
   return "";
 }
 
+/** 自己分析シートのセクションをプロンプト文字列に変換 */
+function buildSelfAnalysisSection(selfAnalysis: SelfAnalysisContext[]): string {
+  if (selfAnalysis.length === 0) return `## 自己分析シート\nまだ記録がありません。\n\n`;
+  const grouped: Record<string, string[]> = {};
+  for (const item of selfAnalysis) {
+    if (!grouped[item.folderName]) grouped[item.folderName] = [];
+    grouped[item.folderName].push(item.text);
+  }
+  let section = `## 自己分析シート\n`;
+  for (const [folderName, items] of Object.entries(grouped)) {
+    section += `\n### ${folderName}\n`;
+    items.forEach((t) => (section += `- ${t}\n`));
+  }
+  return section + "\n";
+}
+
+/** 目標データをプロンプト文字列に変換 */
+function buildGoalsSection(goals?: GoalsContext): string {
+  if (!goals) return "";
+  const hasAny = goals.longTermVision || goals.oneYearGoal || goals.oneMonthGoal ||
+    (goals.smallSteps && goals.smallSteps.length > 0);
+  if (!hasAny) return `## 目標設定\nまだ目標が設定されていません。\n\n`;
+  let section = `## 目標設定\n`;
+  if (goals.longTermVision) section += `- **長期ビジョン**: ${goals.longTermVision}\n`;
+  if (goals.oneYearGoal)    section += `- **1年後の目標**: ${goals.oneYearGoal}\n`;
+  if (goals.oneMonthGoal)   section += `- **今月の目標**: ${goals.oneMonthGoal}\n`;
+  if (goals.smallSteps && goals.smallSteps.length > 0) {
+    const pending = goals.smallSteps.filter((s) => !s.done);
+    const done    = goals.smallSteps.filter((s) => s.done);
+    if (pending.length > 0)
+      section += `- **進行中のアクション**: ${pending.map((s) => s.label).join("、")}\n`;
+    if (done.length > 0)
+      section += `- **完了済みアクション**: ${done.map((s) => s.label).join("、")}\n`;
+  }
+  return section + "\n";
+}
+
 function buildSystemPrompt(
   context: ChatContext,
   summaryPeriod: SummaryPeriod,
@@ -109,6 +153,7 @@ function buildSystemPrompt(
 ): string {
   const allJournals = context?.journals ?? [];
   const selfAnalysis = context?.selfAnalysis ?? [];
+  const goals = context?.goals;
 
   // コーチングモード: 専用プロンプト + ユーザーデータを追記
   if (mode === "coaching") {
@@ -124,21 +169,8 @@ function buildSystemPrompt(
     } else {
       prompt += `\n## ジャーナル記録\nまだ記録がありません。\n\n`;
     }
-    if (selfAnalysis.length > 0) {
-      prompt += `## 自己分析シート\n`;
-      const grouped: Record<string, string[]> = {};
-      for (const item of selfAnalysis) {
-        if (!grouped[item.sectionId]) grouped[item.sectionId] = [];
-        grouped[item.sectionId].push(item.text);
-      }
-      for (const [sectionId, label] of Object.entries(SECTION_LABELS)) {
-        const items = grouped[sectionId];
-        if (items && items.length > 0) {
-          prompt += `\n### ${label}\n`;
-          items.forEach((t) => (prompt += `- ${t}\n`));
-        }
-      }
-    }
+    prompt += buildSelfAnalysisSection(selfAnalysis);
+    prompt += buildGoalsSection(goals);
     return prompt;
   }
 
@@ -168,7 +200,7 @@ function buildSystemPrompt(
     return prompt;
   }
 
-  // 通常モード: ジャーナル + 自己分析を使用
+  // 通常モード: ジャーナル + 自己分析 + 目標を使用
   let prompt = `あなたは「ガクチカビジョン」アプリのAIアシスタントです。
 大学生のガクチカ（学生時代に力を入れたこと）の振り返りと就職活動の準備をサポートします。
 
@@ -188,30 +220,15 @@ function buildSystemPrompt(
     prompt += `## ジャーナル記録\nまだ記録がありません。\n\n`;
   }
 
-  if (selfAnalysis.length > 0) {
-    prompt += `## 自己分析シート\n`;
-    const grouped: Record<string, string[]> = {};
-    for (const item of selfAnalysis) {
-      if (!grouped[item.sectionId]) grouped[item.sectionId] = [];
-      grouped[item.sectionId].push(item.text);
-    }
-    for (const [sectionId, label] of Object.entries(SECTION_LABELS)) {
-      const items = grouped[sectionId];
-      if (items && items.length > 0) {
-        prompt += `\n### ${label}\n`;
-        items.forEach((t) => (prompt += `- ${t}\n`));
-      }
-    }
-    prompt += "\n";
-  } else {
-    prompt += `## 自己分析シート\nまだ記録がありません。\n\n`;
-  }
+  prompt += buildSelfAnalysisSection(selfAnalysis);
+  prompt += buildGoalsSection(goals);
 
   prompt += `## あなたの役割と行動指針
 - ユーザーの目標や方向性を見つける手伝いをする
 - 自己分析シートの内容から強みや成功体験を整理・発見する手伝いをする
+- 設定済みの目標に関連するアドバイスや振り返りを積極的に行う
 - ガクチカのエピソード候補を提案し、STAR法でまとめる手伝いをする
-- 具体的なデータ（日付・エピソード・感情）を引用しながら回答する
+- 具体的なデータ（日付・エピソード・感情・目標）を引用しながら回答する
 - 回答は日本語で、フレンドリーで温かみのある丁寧な口調にする
 - 箇条書きや見出しを活用して読みやすくまとめる`;
 
