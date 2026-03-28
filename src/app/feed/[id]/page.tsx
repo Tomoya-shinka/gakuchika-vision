@@ -40,6 +40,7 @@ type JournalDetail = {
   universityDay?: number;
   audioUrl?: string;
   audioDurationSec?: number;
+  imageUrls?: string[];
 };
 
 type AuthorProfile = {
@@ -355,6 +356,14 @@ export default function FeedDetailPage() {
               <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800 dark:text-slate-200">
                 {plain}
               </p>
+            )}
+            {journal.imageUrls && journal.imageUrls.length > 0 && (
+              <div className={`mt-3 grid gap-1.5 overflow-hidden rounded-xl ${journal.imageUrls.length === 1 ? "grid-cols-1" : journal.imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                {journal.imageUrls.map((url, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={url} alt={`画像 ${i + 1}`} className="aspect-square w-full rounded-lg object-cover" />
+                ))}
+              </div>
             )}
           </div>
 

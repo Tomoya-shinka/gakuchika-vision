@@ -71,6 +71,7 @@ type FeedJournal = {
   universityDay?: number;
   audioUrl?: string;
   audioDurationSec?: number;
+  imageUrls?: string[];
 };
 
 function formatDuration(sec: number): string {
@@ -825,6 +826,21 @@ export default function FeedPage() {
                           </button>
                         )}
                       </>
+                    )}
+
+                    {item.imageUrls && item.imageUrls.length > 0 && (
+                      <div className={cn("grid gap-1.5 overflow-hidden rounded-xl", item.imageUrls.length === 1 ? "grid-cols-1" : item.imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+                        {item.imageUrls.map((url, i) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={i}
+                            src={url}
+                            alt={`画像 ${i + 1}`}
+                            className="aspect-square w-full rounded-lg object-cover"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ))}
+                      </div>
                     )}
 
                     <div className="mt-4 flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">

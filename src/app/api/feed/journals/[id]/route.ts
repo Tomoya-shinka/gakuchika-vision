@@ -115,6 +115,7 @@ export async function GET(
       universityDay,
       audioUrl: typeof data.audioUrl === "string" && data.audioUrl ? data.audioUrl : undefined,
       audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
+      imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
     };
 
     return NextResponse.json({ journal, author, comments });

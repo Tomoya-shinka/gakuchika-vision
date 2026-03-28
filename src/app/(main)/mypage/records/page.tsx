@@ -21,7 +21,7 @@ import {
   getPreview,
   type JournalEntry,
 } from "@/lib/journal";
-import { ArrowLeft, BookOpen, MoreVertical, Pencil, Trash2, Globe, Lock } from "lucide-react";
+import { ArrowLeft, BookOpen, MoreVertical, Pencil, Trash2, Globe, Lock, Mic, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -51,6 +51,9 @@ type FirestoreJournal = {
   content: string;
   createdAt: string;
   isPublic: boolean;
+  audioUrl?: string;
+  audioDurationSec?: number;
+  imageUrls?: string[];
 };
 
 export default function MyPageRecords() {
@@ -116,6 +119,9 @@ export default function MyPageRecords() {
           content: String(data.content ?? ""),
           createdAt,
           isPublic: data.isPublic === true,
+          audioUrl: typeof data.audioUrl === "string" && data.audioUrl ? data.audioUrl : undefined,
+          audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
+          imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
         });
       });
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -300,6 +306,22 @@ export default function MyPageRecords() {
                             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
                               {preview}
                             </p>
+                            {(entry.audioUrl || (entry.imageUrls && entry.imageUrls.length > 0)) && (
+                              <div className="mt-1.5 flex items-center gap-2">
+                                {entry.audioUrl && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-600 dark:bg-sky-900/30 dark:text-sky-400">
+                                    <Mic className="size-2.5" aria-hidden />
+                                    音声
+                                  </span>
+                                )}
+                                {entry.imageUrls && entry.imageUrls.length > 0 && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                                    <ImageIcon className="size-2.5" aria-hidden />
+                                    画像 {entry.imageUrls.length}枚
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </Link>
                         <div className="flex w-[120px] shrink-0 items-center justify-between gap-1 border-l border-border px-3">

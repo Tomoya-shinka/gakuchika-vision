@@ -16,6 +16,7 @@ type FeedJournalItem = {
   universityDay?: number;
   audioUrl?: string;
   audioDurationSec?: number;
+  imageUrls?: string[];
 };
 
 type AuthorProfile = {
@@ -120,6 +121,7 @@ export async function GET() {
         commentCount: 0,
         audioUrl,
         audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
+        imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
       });
     };
 
