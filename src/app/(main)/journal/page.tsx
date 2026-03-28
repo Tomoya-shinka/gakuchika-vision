@@ -441,12 +441,16 @@ export default function JournalPage() {
 
     try {
       const preferredDeviceId = typeof window !== "undefined" ? localStorage.getItem("preferred_mic_device_id") : null;
-      // 音声処理（echoCancellation等）は録音品質を下げるため常にOFF
+      // deviceId を明示しないと Chrome on Windows が OS デフォルト以外のデバイスを選ぶことがある。
+      // 設定未指定時は "default" を明示して OS のデフォルト録音デバイスを強制使用。
+      // echoCancellation 等はブラウザ側の音声処理を無効化し、マイク本来の音質を維持する。
       const audioConstraints: MediaTrackConstraints = {
-        ...(preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : {}),
+        deviceId: preferredDeviceId ? { exact: preferredDeviceId } : "default",
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
+        sampleRate: { ideal: 48000 },
+        channelCount: { ideal: 1 },
       };
       const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       audioChunksRef.current = [];
