@@ -441,11 +441,25 @@ export default function JournalPage() {
 
     try {
       const preferredDeviceId = typeof window !== "undefined" ? localStorage.getItem("preferred_mic_device_id") : null;
-      // deviceId を明示しないと Chrome on Windows が OS デフォルト以外のデバイスを選ぶことがある。
-      // 設定未指定時は "default" を明示して OS のデフォルト録音デバイスを強制使用。
-      // echoCancellation 等はブラウザ側の音声処理を無効化し、マイク本来の音質を維持する。
+
+      // deviceId を確定する。
+      // 設定未指定時: まず制約なしでストリームを開いてブラウザが選んだデバイスIDを取得し、
+      // そのIDを exact で指定して再接続する。これにより OS がデフォルトに設定した
+      // デバイス（USBマイク等）が確実に使われる。
+      let resolvedDeviceId: string | undefined = preferredDeviceId ?? undefined;
+      if (!resolvedDeviceId) {
+        try {
+          const probeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const probeTrack = probeStream.getAudioTracks()[0];
+          resolvedDeviceId = probeTrack?.getSettings().deviceId;
+          probeStream.getTracks().forEach((t) => t.stop());
+        } catch {
+          // プローブ失敗時はdeviceId未指定にフォールバック
+        }
+      }
+
       const audioConstraints: MediaTrackConstraints = {
-        deviceId: preferredDeviceId ? { exact: preferredDeviceId } : "default",
+        ...(resolvedDeviceId ? { deviceId: { exact: resolvedDeviceId } } : {}),
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
