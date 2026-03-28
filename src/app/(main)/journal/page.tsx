@@ -266,6 +266,7 @@ export default function JournalPage() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartTimeRef = useRef<number>(0);
   const templateRef = useRef<JournalTemplate>("free");
   const transcribeTargetRef = useRef<
     | { type: "tiptap" }
@@ -471,7 +472,10 @@ export default function JournalPage() {
           audioChunksRef.current = [];
           const audioUrl = URL.createObjectURL(audioBlob);
           setIsVoiceMode(false);
-          setVoiceReview({ audioUrl, audioBlob, durationSec: recordingSeconds, transcription: "", isTranscribing: true });
+          const durationSec = recordingStartTimeRef.current
+            ? Math.round((Date.now() - recordingStartTimeRef.current) / 1000)
+            : 0;
+          setVoiceReview({ audioUrl, audioBlob, durationSec, transcription: "", isTranscribing: true });
           try {
             const form = new FormData();
             form.append("audio", audioBlob, "audio.webm");
@@ -487,6 +491,7 @@ export default function JournalPage() {
 
       // マイクHW初期化を待ってから録音開始（冒頭カット防止）
       await new Promise<void>((r) => setTimeout(r, 200));
+      recordingStartTimeRef.current = Date.now();
       recorder.start(100); // 100ms timeslice で定期チャンク収集
       setIsRecording(true);
     } catch {
@@ -1271,7 +1276,11 @@ export default function JournalPage() {
                   src={voiceReview.audioUrl}
                   onLoadedMetadata={() => {
                     const dur = voiceAudioRef.current?.duration ?? 0;
-                    if (isFinite(dur) && dur > 0) setVoiceDurationSec(dur);
+                    if (isFinite(dur) && dur > 0) {
+                      setVoiceDurationSec(dur);
+                    } else if (voiceReview?.durationSec && voiceReview.durationSec > 0) {
+                      setVoiceDurationSec(voiceReview.durationSec);
+                    }
                   }}
                   onTimeUpdate={() => setVoicePlaySec(voiceAudioRef.current?.currentTime ?? 0)}
                   onEnded={() => {
