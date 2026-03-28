@@ -59,6 +59,9 @@ export function loadEntries(): JournalEntry[] {
           category: "未分類",
           title: typeof e.title === "string" ? (e.title as string).trim() || undefined : undefined,
           visibility,
+          audioUrl: typeof e.audioUrl === "string" && e.audioUrl ? e.audioUrl : undefined,
+          audioDurationSec: typeof e.audioDurationSec === "number" ? e.audioDurationSec : undefined,
+          imageUrls: Array.isArray(e.imageUrls) ? (e.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
         } as JournalEntry;
       })
       .filter((e: JournalEntry) => e.content || e.id)

@@ -92,7 +92,7 @@ export default function JournalDetailPage() {
   );
 
   useEffect(() => {
-    if (localEntry || !id) {
+    if (!id) {
       setFirestoreEntry(null);
       return;
     }
@@ -123,39 +123,37 @@ export default function JournalDetailPage() {
         if (!cancelled) setFirestoreEntry(null);
       });
     return () => { cancelled = true; };
-  }, [id, localEntry]);
+  }, [id]);
 
   const entry = useMemo(() => {
-    if (localEntry) {
-      return {
-        id: localEntry.id,
-        title: localEntry.title,
-        content: localEntry.content,
-        createdAt: localEntry.createdAt,
-        visibility: localEntry.visibility,
-        isPublic: localEntry.visibility === "public",
-        audioUrl: localEntry.audioUrl,
-        audioDurationSec: localEntry.audioDurationSec,
-        imageUrls: localEntry.imageUrls,
-      };
-    }
-    if (firestoreEntry) {
-      return {
-        id: firestoreEntry.id,
-        title: firestoreEntry.title,
-        content: firestoreEntry.content,
-        createdAt: firestoreEntry.createdAt,
-        visibility: firestoreEntry.isPublic ? "public" : "private",
-        isPublic: firestoreEntry.isPublic,
-        audioUrl: firestoreEntry.audioUrl,
-        audioDurationSec: firestoreEntry.audioDurationSec,
-        imageUrls: firestoreEntry.imageUrls,
-      };
-    }
-    return null;
+    // Firestore データを優先（audioUrl / imageUrls は Firestore が正）
+    const base = firestoreEntry ?? (localEntry ? {
+      id: localEntry.id,
+      title: localEntry.title,
+      content: localEntry.content,
+      createdAt: localEntry.createdAt,
+      isPublic: localEntry.visibility === "public",
+      audioUrl: localEntry.audioUrl,
+      audioDurationSec: localEntry.audioDurationSec,
+      imageUrls: localEntry.imageUrls,
+    } as FirestoreEntry : null);
+
+    if (!base) return null;
+
+    return {
+      id: base.id,
+      title: base.title,
+      content: base.content,
+      createdAt: base.createdAt,
+      visibility: base.isPublic ? "public" : "private",
+      isPublic: base.isPublic,
+      audioUrl: base.audioUrl,
+      audioDurationSec: base.audioDurationSec,
+      imageUrls: base.imageUrls,
+    };
   }, [localEntry, firestoreEntry]);
 
-  const loading = localEntry === undefined && firestoreEntry === undefined && id.length > 0;
+  const loading = firestoreEntry === undefined && !localEntry && id.length > 0;
   const notFound = !loading && !entry;
 
   if (loading) {
