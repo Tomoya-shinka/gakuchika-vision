@@ -95,11 +95,9 @@ export function AppSidebar() {
             <GraduationCap className="size-4" />
           </div>
           <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden whitespace-nowrap">
-            <span className="truncate font-semibold">LIFE VISION JOURNAL</span>
-            <span className="block text-xs leading-tight text-muted-foreground">
-              自己分析と目標達成を
-              <br />
-              サポートするジャーナルアプリ
+            <span className="truncate font-bold tracking-widest">LVJ</span>
+            <span className="block text-[10px] leading-tight tracking-wider text-muted-foreground">
+              LIFE VISION JOURNAL
             </span>
           </div>
         </Link>
