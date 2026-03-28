@@ -439,9 +439,23 @@ export default function JournalPage() {
     };
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 44100,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       audioChunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        audioBitsPerSecond: 128_000,
+      });
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -451,7 +465,7 @@ export default function JournalPage() {
       recorder.onstop = () => {
         void (async () => {
           stream.getTracks().forEach((t) => t.stop());
-          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
           audioChunksRef.current = [];
           const audioUrl = URL.createObjectURL(audioBlob);
           setIsVoiceMode(false);
@@ -469,7 +483,9 @@ export default function JournalPage() {
         })();
       };
 
-      recorder.start();
+      // マイクHW初期化を待ってから録音開始（冒頭カット防止）
+      await new Promise<void>((r) => setTimeout(r, 200));
+      recorder.start(100); // 100ms timeslice で定期チャンク収集
       setIsRecording(true);
     } catch {
       toast.error("マイクへのアクセスが拒否されました");
