@@ -441,20 +441,13 @@ export default function JournalPage() {
 
     try {
       const preferredDeviceId = typeof window !== "undefined" ? localStorage.getItem("preferred_mic_device_id") : null;
-      // 特定デバイス選択時: exact で確実に使用 & 音声処理OFF（USB/外部マイクに最適）
-      // デフォルト時: 内蔵マイク向けにノイズ処理ON
-      const audioConstraints: MediaTrackConstraints = preferredDeviceId
-        ? {
-            deviceId: { exact: preferredDeviceId },
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-        : {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          };
+      // 音声処理（echoCancellation等）は録音品質を下げるため常にOFF
+      const audioConstraints: MediaTrackConstraints = {
+        ...(preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : {}),
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      };
       const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       audioChunksRef.current = [];
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
