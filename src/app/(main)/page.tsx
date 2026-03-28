@@ -447,7 +447,7 @@ export default function HomePage() {
             return (
               <div
                 key={t}
-                className={`flex aspect-square flex-col items-center justify-center rounded-md border text-[10px] transition-colors ${style.cellBg} ${style.cellBorder} ${isToday ? "ring-2 ring-sky-500/40 dark:ring-sky-400/30" : ""}`}
+                className={`flex aspect-square flex-col items-center justify-center rounded-md border text-[10px] transition-colors ${style.cellBg} ${style.cellBorder} ${isToday ? "ring-2 ring-inset ring-sky-500/60 dark:ring-sky-400/40" : ""}`}
                 title={count > 0 ? `${dayNum}日（${count}件）` : undefined}
               >
                 <span className={`text-xs font-semibold ${style.numText}`}>{dayNum}</span>
