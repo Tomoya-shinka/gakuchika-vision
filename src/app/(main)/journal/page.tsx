@@ -440,26 +440,11 @@ export default function JournalPage() {
     };
 
     try {
+      // 設定ページで選択されたデバイスIDを使用（必ず設定済みのはず）
       const preferredDeviceId = typeof window !== "undefined" ? localStorage.getItem("preferred_mic_device_id") : null;
 
-      // deviceId を確定する。
-      // 設定未指定時: まず制約なしでストリームを開いてブラウザが選んだデバイスIDを取得し、
-      // そのIDを exact で指定して再接続する。これにより OS がデフォルトに設定した
-      // デバイス（USBマイク等）が確実に使われる。
-      let resolvedDeviceId: string | undefined = preferredDeviceId ?? undefined;
-      if (!resolvedDeviceId) {
-        try {
-          const probeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const probeTrack = probeStream.getAudioTracks()[0];
-          resolvedDeviceId = probeTrack?.getSettings().deviceId;
-          probeStream.getTracks().forEach((t) => t.stop());
-        } catch {
-          // プローブ失敗時はdeviceId未指定にフォールバック
-        }
-      }
-
       const audioConstraints: MediaTrackConstraints = {
-        ...(resolvedDeviceId ? { deviceId: { exact: resolvedDeviceId } } : {}),
+        ...(preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : {}),
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
