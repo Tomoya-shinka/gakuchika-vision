@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pause, Play } from "lucide-react";
 import { loadEntries, formatDate } from "@/lib/journal";
 
 type FirestoreEntry = {
@@ -14,7 +14,71 @@ type FirestoreEntry = {
   content: string;
   createdAt: string;
   isPublic: boolean;
+  audioUrl?: string;
+  audioDurationSec?: number;
+  imageUrls?: string[];
 };
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function VoicePlayer({ src, durationSec }: { src: string; durationSec?: number }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentSec, setCurrentSec] = useState(0);
+  const [totalSec, setTotalSec] = useState(durationSec ?? 0);
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-sky-50 px-4 py-3 dark:bg-sky-900/20">
+      <audio
+        ref={audioRef}
+        src={src}
+        onLoadedMetadata={() => {
+          const dur = audioRef.current?.duration ?? 0;
+          if (isFinite(dur) && dur > 0) setTotalSec(dur);
+          else if (durationSec) setTotalSec(durationSec);
+        }}
+        onTimeUpdate={() => setCurrentSec(audioRef.current?.currentTime ?? 0)}
+        onEnded={() => { setIsPlaying(false); setCurrentSec(0); if (audioRef.current) audioRef.current.currentTime = 0; }}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          const a = audioRef.current;
+          if (!a) return;
+          if (isPlaying) { a.pause(); setIsPlaying(false); }
+          else { void a.play(); setIsPlaying(true); }
+        }}
+        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white transition-colors hover:bg-sky-600"
+        aria-label={isPlaying ? "一時停止" : "再生"}
+      >
+        {isPlaying ? <Pause className="size-4" /> : <Play className="size-4 translate-x-0.5" />}
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <input
+          type="range"
+          min={0}
+          max={totalSec || 1}
+          step={0.1}
+          value={currentSec}
+          onChange={(e) => {
+            const t = Number(e.target.value);
+            if (audioRef.current) audioRef.current.currentTime = t;
+            setCurrentSec(t);
+          }}
+          className="h-1.5 w-full cursor-pointer accent-sky-500"
+        />
+        <div className="flex justify-between text-[11px] text-slate-500">
+          <span>{formatDuration(Math.floor(currentSec))}</span>
+          <span>{formatDuration(Math.floor(totalSec))}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function JournalDetailPage() {
   const params = useParams();
@@ -50,6 +114,9 @@ export default function JournalDetailPage() {
           content: String(data.content ?? ""),
           createdAt,
           isPublic: data.isPublic === true,
+          audioUrl: typeof data.audioUrl === "string" && data.audioUrl ? data.audioUrl : undefined,
+          audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
+          imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
         });
       })
       .catch(() => {
@@ -67,6 +134,9 @@ export default function JournalDetailPage() {
         createdAt: localEntry.createdAt,
         visibility: localEntry.visibility,
         isPublic: localEntry.visibility === "public",
+        audioUrl: localEntry.audioUrl,
+        audioDurationSec: localEntry.audioDurationSec,
+        imageUrls: localEntry.imageUrls,
       };
     }
     if (firestoreEntry) {
@@ -77,6 +147,9 @@ export default function JournalDetailPage() {
         createdAt: firestoreEntry.createdAt,
         visibility: firestoreEntry.isPublic ? "public" : "private",
         isPublic: firestoreEntry.isPublic,
+        audioUrl: firestoreEntry.audioUrl,
+        audioDurationSec: firestoreEntry.audioDurationSec,
+        imageUrls: firestoreEntry.imageUrls,
       };
     }
     return null;
@@ -184,15 +257,30 @@ export default function JournalDetailPage() {
             </span>
           </header>
 
-          <div className="prose-journal text-sm leading-relaxed text-foreground/90 dark:prose-invert [&_ul]:list-disc [&_ol]:list-decimal">
-            {isHtml ? (
-              <div
-                dangerouslySetInnerHTML={{ __html: entry.content }}
-              />
-            ) : (
-              <p className="whitespace-pre-wrap">{entry.content}</p>
-            )}
-          </div>
+          {entry.audioUrl && (
+            <div className="mb-5">
+              <VoicePlayer src={entry.audioUrl} durationSec={entry.audioDurationSec} />
+            </div>
+          )}
+
+          {entry.content && (
+            <div className="prose-journal text-sm leading-relaxed text-foreground/90 dark:prose-invert [&_ul]:list-disc [&_ol]:list-decimal">
+              {isHtml ? (
+                <div dangerouslySetInnerHTML={{ __html: entry.content }} />
+              ) : (
+                <p className="whitespace-pre-wrap">{entry.content}</p>
+              )}
+            </div>
+          )}
+
+          {entry.imageUrls && entry.imageUrls.length > 0 && (
+            <div className={`mt-5 grid gap-2 overflow-hidden rounded-xl ${entry.imageUrls.length === 1 ? "grid-cols-1" : entry.imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+              {entry.imageUrls.map((url, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={url} alt={`画像 ${i + 1}`} className="aspect-square w-full rounded-lg object-cover" />
+              ))}
+            </div>
+          )}
         </article>
       </main>
     </div>
