@@ -441,23 +441,28 @@ export default function JournalPage() {
 
     try {
       const preferredDeviceId = typeof window !== "undefined" ? localStorage.getItem("preferred_mic_device_id") : null;
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...(preferredDeviceId ? { deviceId: { ideal: preferredDeviceId } } : {}),
-          sampleRate: 44100,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      // 特定デバイス選択時: exact で確実に使用 & 音声処理OFF（USB/外部マイクに最適）
+      // デフォルト時: 内蔵マイク向けにノイズ処理ON
+      const audioConstraints: MediaTrackConstraints = preferredDeviceId
+        ? {
+            deviceId: { exact: preferredDeviceId },
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          }
+        : {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          };
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       audioChunksRef.current = [];
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm";
       const recorder = new MediaRecorder(stream, {
         mimeType,
-        audioBitsPerSecond: 128_000,
+        audioBitsPerSecond: 192_000,
       });
       mediaRecorderRef.current = recorder;
 
@@ -489,8 +494,8 @@ export default function JournalPage() {
         })();
       };
 
-      // マイクHW初期化を待ってから録音開始（冒頭カット防止）
-      await new Promise<void>((r) => setTimeout(r, 200));
+      // マイクHW初期化を待ってから録音開始（USBマイクは500ms必要）
+      await new Promise<void>((r) => setTimeout(r, 500));
       recordingStartTimeRef.current = Date.now();
       recorder.start(100); // 100ms timeslice で定期チャンク収集
       setIsRecording(true);
