@@ -439,8 +439,10 @@ export default function JournalPage() {
     };
 
     try {
+      const preferredDeviceId = typeof window !== "undefined" ? localStorage.getItem("preferred_mic_device_id") : null;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          ...(preferredDeviceId ? { deviceId: { ideal: preferredDeviceId } } : {}),
           sampleRate: 44100,
           channelCount: 1,
           echoCancellation: true,
@@ -469,7 +471,7 @@ export default function JournalPage() {
           audioChunksRef.current = [];
           const audioUrl = URL.createObjectURL(audioBlob);
           setIsVoiceMode(false);
-          setVoiceReview({ audioUrl, audioBlob, durationSec: 0, transcription: "", isTranscribing: true });
+          setVoiceReview({ audioUrl, audioBlob, durationSec: recordingSeconds, transcription: "", isTranscribing: true });
           try {
             const form = new FormData();
             form.append("audio", audioBlob, "audio.webm");
@@ -1269,7 +1271,7 @@ export default function JournalPage() {
                   src={voiceReview.audioUrl}
                   onLoadedMetadata={() => {
                     const dur = voiceAudioRef.current?.duration ?? 0;
-                    setVoiceDurationSec(isFinite(dur) ? dur : 0);
+                    if (isFinite(dur) && dur > 0) setVoiceDurationSec(dur);
                   }}
                   onTimeUpdate={() => setVoicePlaySec(voiceAudioRef.current?.currentTime ?? 0)}
                   onEnded={() => {
@@ -1295,7 +1297,7 @@ export default function JournalPage() {
                     <input
                       type="range"
                       min={0}
-                      max={voiceDurationSec || 1}
+                      max={voiceDurationSec || voiceReview.durationSec || 1}
                       step={0.1}
                       value={voicePlaySec}
                       onChange={(e) => {
@@ -1307,7 +1309,7 @@ export default function JournalPage() {
                     />
                     <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
                       <span>{formatRecordingTime(Math.floor(voicePlaySec))}</span>
-                      <span>{formatRecordingTime(Math.floor(voiceDurationSec))}</span>
+                      <span>{formatRecordingTime(Math.floor(voiceDurationSec || voiceReview.durationSec))}</span>
                     </div>
                   </div>
                 </div>

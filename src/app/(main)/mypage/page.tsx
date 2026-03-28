@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { History, Target, UserPen } from "lucide-react";
+import { History, Target, UserPen, Settings } from "lucide-react";
 import { loadGoals } from "@/lib/goals";
 import { loadProfile, saveProfile, type UserProfile } from "@/lib/user-profile";
 import { useAuth } from "@/contexts/auth-context";
@@ -168,8 +168,15 @@ export default function MyPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4 sm:h-14">
         <h1 className="text-base font-semibold sm:text-lg">My Page</h1>
+        <Link
+          href="/settings"
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="設定"
+        >
+          <Settings className="size-4 sm:size-5" />
+        </Link>
       </header>
       <main className="flex flex-1 flex-col overflow-auto">
         <div className="relative min-h-full w-full bg-gradient-to-b from-slate-50/60 via-white to-sky-50/20 dark:from-slate-950/30 dark:via-background dark:to-sky-950/10">

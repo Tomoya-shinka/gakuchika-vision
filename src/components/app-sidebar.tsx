@@ -12,6 +12,7 @@ import {
   MessageCircle,
   LogIn,
   LogOut,
+  Settings,
 } from "lucide-react";
 
 import {
@@ -58,6 +59,11 @@ const navItems = [
     title: "My Page",
     url: "/mypage",
     icon: CircleUser,
+  },
+  {
+    title: "設定",
+    url: "/settings",
+    icon: Settings,
   },
 ];
 
