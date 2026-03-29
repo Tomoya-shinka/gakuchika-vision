@@ -13,18 +13,6 @@ import {
 import { getDb } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 
-function isCommentNotificationsEnabled(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    const raw = localStorage.getItem("notification_settings");
-    if (!raw) return true;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return parsed.commentNotifications !== false;
-  } catch {
-    return true;
-  }
-}
-
 /**
  * 自分の投稿へのコメント未読通知を管理するフック。
  * - hasUnread: 未読コメント通知があるか
@@ -35,7 +23,7 @@ export function useCommentNotifications() {
   const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
-    if (!user?.uid || !isCommentNotificationsEnabled()) {
+    if (!user?.uid) {
       setHasUnread(false);
       return;
     }

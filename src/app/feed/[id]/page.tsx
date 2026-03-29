@@ -49,6 +49,7 @@ type AuthorProfile = {
   university: string;
   grade: string;
   avatarUrl?: string;
+  commentsEnabled?: boolean;
 };
 
 type Comment = {
@@ -397,30 +398,36 @@ export default function FeedDetailPage() {
 
           {/* コメント入力欄 */}
           {user && (
-            <div className="mb-5 flex gap-2">
-              <Input
-                placeholder="コメントを追加..."
-                value={commentInput}
-                onChange={(e) => setCommentInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSubmitComment();
-                  }
-                }}
-                className="flex-1 text-sm"
-              />
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => void handleSubmitComment()}
-                disabled={!commentInput.trim() || submitting}
-              >
-                {submitting
-                  ? <Loader2 className="size-4 animate-spin" />
-                  : <Send className="size-4 text-sky-500" />}
-              </Button>
-            </div>
+            author?.commentsEnabled === false ? (
+              <p className="mb-5 rounded-lg bg-muted/60 px-4 py-3 text-center text-sm text-muted-foreground">
+                この投稿へのコメントは受け付けていません
+              </p>
+            ) : (
+              <div className="mb-5 flex gap-2">
+                <Input
+                  placeholder="コメントを追加..."
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleSubmitComment();
+                    }
+                  }}
+                  className="flex-1 text-sm"
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => void handleSubmitComment()}
+                  disabled={!commentInput.trim() || submitting}
+                >
+                  {submitting
+                    ? <Loader2 className="size-4 animate-spin" />
+                    : <Send className="size-4 text-sky-500" />}
+                </Button>
+              </div>
+            )
           )}
 
           {/* コメント一覧 */}

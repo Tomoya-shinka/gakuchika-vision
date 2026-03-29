@@ -75,6 +75,8 @@ export async function GET(
       displayName: typeof authorData?.displayName === "string" ? authorData.displayName : "ユーザー",
       university: typeof authorData?.university === "string" ? authorData.university : "",
       grade: typeof authorData?.grade === "string" ? authorData.grade : "",
+      avatarUrl: typeof authorData?.avatarUrl === "string" && authorData.avatarUrl ? authorData.avatarUrl : undefined,
+      commentsEnabled: authorData?.commentsEnabled !== false,
     };
     const universityDay = calcUniversityDay(authorData?.enrollmentDate, createdAt);
 

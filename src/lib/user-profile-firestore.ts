@@ -16,7 +16,7 @@ export interface FirestoreUserProfile {
   birthDate?: string;
   isStudent?: boolean;
   avatarUrl?: string;
-  commentNotificationsEnabled?: boolean;
+  commentsEnabled?: boolean;
   dmEnabled?: boolean;
 }
 
@@ -49,7 +49,7 @@ export async function getUserProfile(
         : undefined,
     isStudent: d?.isStudent !== undefined ? Boolean(d.isStudent) : true,
     avatarUrl: typeof d?.avatarUrl === "string" && d.avatarUrl ? d.avatarUrl : undefined,
-    commentNotificationsEnabled: d?.commentNotificationsEnabled !== false,
+    commentsEnabled: d?.commentsEnabled !== false,
     dmEnabled: d?.dmEnabled !== false,
   };
 }
@@ -67,7 +67,7 @@ export async function saveUserProfile(
     birthDate?: string;
     isStudent?: boolean;
     avatarUrl?: string;
-    commentNotificationsEnabled?: boolean;
+    commentsEnabled?: boolean;
     dmEnabled?: boolean;
   }
 ): Promise<void> {

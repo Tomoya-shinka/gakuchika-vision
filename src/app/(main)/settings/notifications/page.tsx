@@ -10,42 +10,42 @@ import { getUserProfile, saveUserProfile } from "@/lib/user-profile-firestore";
 
 const NOTIF_STORAGE_KEY = "notification_settings";
 
-function loadLocalSettings(): { commentNotifications: boolean; dmEnabled: boolean } {
-  if (typeof window === "undefined") return { commentNotifications: true, dmEnabled: true };
+function loadLocalSettings(): { commentsEnabled: boolean; dmEnabled: boolean } {
+  if (typeof window === "undefined") return { commentsEnabled: true, dmEnabled: true };
   try {
     const raw = localStorage.getItem(NOTIF_STORAGE_KEY);
-    if (!raw) return { commentNotifications: true, dmEnabled: true };
+    if (!raw) return { commentsEnabled: true, dmEnabled: true };
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
-      commentNotifications: parsed.commentNotifications !== false,
+      commentsEnabled: parsed.commentsEnabled !== false,
       dmEnabled: parsed.dmEnabled !== false,
     };
   } catch {
-    return { commentNotifications: true, dmEnabled: true };
+    return { commentsEnabled: true, dmEnabled: true };
   }
 }
 
-function saveLocalSettings(settings: { commentNotifications: boolean; dmEnabled: boolean }) {
+function saveLocalSettings(settings: { commentsEnabled: boolean; dmEnabled: boolean }) {
   if (typeof window === "undefined") return;
   localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(settings));
 }
 
 export default function NotificationsSettingsPage() {
   const { user } = useAuth();
-  const [commentNotifications, setCommentNotifications] = useState(true);
+  const [commentsEnabled, setCommentsEnabled] = useState(true);
   const [dmEnabled, setDmEnabled] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     const local = loadLocalSettings();
-    setCommentNotifications(local.commentNotifications);
+    setCommentsEnabled(local.commentsEnabled);
     setDmEnabled(local.dmEnabled);
     if (user?.uid) {
       try {
         const fp = await getUserProfile(getDb(), user.uid);
         if (fp) {
-          setCommentNotifications(fp.commentNotificationsEnabled !== false);
+          setCommentsEnabled(fp.commentsEnabled !== false);
           setDmEnabled(fp.dmEnabled !== false);
         }
       } catch { /* localの値をそのまま使用 */ }
@@ -56,7 +56,7 @@ export default function NotificationsSettingsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const settings = { commentNotifications, dmEnabled };
+    const settings = { commentsEnabled, dmEnabled };
     saveLocalSettings(settings);
     if (user?.uid) {
       try {
@@ -72,7 +72,7 @@ export default function NotificationsSettingsPage() {
             birthDate: fp.birthDate,
             isStudent: fp.isStudent,
             avatarUrl: fp.avatarUrl,
-            commentNotificationsEnabled: commentNotifications,
+            commentsEnabled,
             dmEnabled,
           });
         }
@@ -85,12 +85,12 @@ export default function NotificationsSettingsPage() {
 
   const items = [
     {
-      key: "comment" as const,
+      key: "comments" as const,
       icon: MessageCircle,
       label: "投稿へのコメント",
-      description: "自分の投稿にコメントがついたとき通知を受け取る",
-      value: commentNotifications,
-      onChange: setCommentNotifications,
+      description: "自分の投稿に他のユーザーがコメントできるようにする",
+      value: commentsEnabled,
+      onChange: setCommentsEnabled,
     },
     {
       key: "dm" as const,
@@ -130,7 +130,6 @@ export default function NotificationsSettingsPage() {
                       <p className="text-sm font-medium">{item.label}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
                     </div>
-                    {/* トグルスイッチ */}
                     <button
                       type="button"
                       role="switch"
