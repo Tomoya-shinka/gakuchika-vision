@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, CheckCircle2, Camera, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { loadProfile, saveProfile, type UserProfile } from "@/lib/user-profile";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
@@ -32,6 +33,9 @@ export default function AccountSettingsPage() {
   });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadProfileData = useCallback(async () => {
     const p = loadProfile();
@@ -50,6 +54,7 @@ export default function AccountSettingsPage() {
             enrollmentDate: fp.enrollmentDate || p.enrollmentDate || "",
             birthDate: fp.birthDate || p.birthDate || "",
             isStudent: resolvedIsStudent,
+            avatarUrl: fp.avatarUrl || p.avatarUrl,
           });
         } else {
           setFirestoreProfile(null);
@@ -64,6 +69,46 @@ export default function AccountSettingsPage() {
     loadProfileData();
   }, [loadProfileData]);
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.uid) return;
+    setAvatarError(null);
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("uid", user.uid);
+      const res = await fetch("/api/upload-avatar", { method: "POST", body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "upload failed");
+      const { avatarUrl } = json as { avatarUrl: string };
+      // localStorageとFirestoreの両方に即時保存
+      const current = loadProfile();
+      saveProfile({ ...current, avatarUrl });
+      setEditForm((prev) => ({ ...prev, avatarUrl }));
+      if (user?.uid) {
+        const fp = firestoreProfile;
+        await saveUserProfile(getDb(), user.uid, {
+          displayName: fp?.displayName ?? current.name,
+          university: fp?.university ?? current.university,
+          grade: fp?.grade ?? current.status,
+          isProfileCompleted: true,
+          graduationDate: fp?.graduationDate ?? current.graduationDate,
+          enrollmentDate: fp?.enrollmentDate,
+          birthDate: fp?.birthDate,
+          isStudent: fp?.isStudent ?? current.isStudent ?? true,
+          avatarUrl,
+        });
+        setFirestoreProfile((prev) => prev ? { ...prev, avatarUrl } : null);
+      }
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "アップロードに失敗しました");
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const gradeWithSuffix = editForm.isStudent && editForm.status ? `${editForm.status}年生` : "";
@@ -77,6 +122,7 @@ export default function AccountSettingsPage() {
       enrollmentDate: editForm.isStudent && editForm.enrollmentDate?.trim() ? editForm.enrollmentDate.trim() : undefined,
       birthDate: editForm.birthDate?.trim() ? editForm.birthDate.trim() : undefined,
       isStudent: editForm.isStudent ?? true,
+      avatarUrl: editForm.avatarUrl,
     };
     saveProfile(profileToSave);
     setFirestoreProfile(newFirestoreProfile);
@@ -91,6 +137,9 @@ export default function AccountSettingsPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  const displayName = editForm.name || "?";
+  const avatarUrl = editForm.avatarUrl;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -109,6 +158,47 @@ export default function AccountSettingsPage() {
         <div className="mx-auto max-w-2xl">
           <Card>
             <CardContent className="space-y-4 pt-6">
+
+              {/* アバター */}
+              <div className="flex flex-col items-center gap-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={avatarUploading || !user}
+                  className="group relative"
+                  aria-label="アイコンを変更"
+                >
+                  <Avatar className="size-20 border-2 border-border">
+                    <AvatarImage src={avatarUrl} alt={displayName} />
+                    <AvatarFallback className="bg-sky-100 text-xl font-semibold text-sky-700 dark:bg-sky-900/50 dark:text-sky-300">
+                      {displayName[0]?.toUpperCase() ?? "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:hidden">
+                    {avatarUploading
+                      ? <Loader2 className="size-6 animate-spin text-white" />
+                      : <Camera className="size-6 text-white" />
+                    }
+                  </div>
+                  {avatarUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+                      <Loader2 className="size-6 animate-spin text-white" />
+                    </div>
+                  )}
+                </button>
+                <p className="text-xs text-muted-foreground">タップしてアイコンを変更</p>
+                {avatarError && (
+                  <p className="text-xs text-destructive">{avatarError}</p>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="profile-name">名前</Label>
                 <Input

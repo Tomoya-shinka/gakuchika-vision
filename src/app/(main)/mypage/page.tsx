@@ -11,7 +11,7 @@ import {
   getUserProfile,
   type FirestoreUserProfile,
 } from "@/lib/user-profile-firestore";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -104,6 +104,10 @@ export default function MyPage() {
               <CardHeader className="relative flex-shrink-0 p-4 pb-0 sm:p-6 md:w-auto md:flex-1 md:flex-row md:items-center md:gap-10 md:pb-10 md:pr-12 md:pt-10 sm:pb-0 sm:pt-6">
                 <div className="flex flex-row items-center gap-3 sm:flex-col sm:gap-6 md:flex-row md:gap-10">
                   <Avatar className="size-16 shrink-0 border-2 border-sky-100 dark:border-sky-900/50 sm:size-28 md:size-32">
+                    <AvatarImage
+                      src={firestoreProfile?.avatarUrl ?? profile?.avatarUrl}
+                      alt={firestoreProfile?.displayName ?? profile?.name ?? ""}
+                    />
                     <AvatarFallback className="bg-sky-100 text-lg font-semibold text-sky-700 sm:text-3xl dark:bg-sky-900/50 dark:text-sky-300">
                       {(firestoreProfile?.displayName ??
                         profile?.name ??

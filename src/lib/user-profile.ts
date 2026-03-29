@@ -14,6 +14,8 @@ export interface UserProfile {
   birthDate?: string;
   /** 大学生フラグ（falseの場合、大学関連フィールドは非表示） */
   isStudent?: boolean;
+  /** アバター画像URL */
+  avatarUrl?: string;
 }
 
 export const USER_PROFILE_STORAGE_KEY = "user_profile";
@@ -48,7 +50,8 @@ export function loadProfile(): UserProfile {
     const birthDateRaw = String(parsed.birthDate ?? "").trim();
     const birthDate = isValidDate(birthDateRaw) ? birthDateRaw : undefined;
     const isStudent = parsed.isStudent !== undefined ? Boolean(parsed.isStudent) : true;
-    return { name, university, status, graduationDate, enrollmentDate, birthDate, isStudent };
+    const avatarUrl = typeof parsed.avatarUrl === "string" && parsed.avatarUrl ? parsed.avatarUrl : undefined;
+    return { name, university, status, graduationDate, enrollmentDate, birthDate, isStudent, avatarUrl };
   } catch {
     return { ...defaultProfile };
   }
