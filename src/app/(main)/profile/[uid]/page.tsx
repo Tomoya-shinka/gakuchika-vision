@@ -47,6 +47,7 @@ type ProfileData = {
   enrollmentDate?: string;
   graduationDate?: string;
   avatarUrl?: string;
+  dmEnabled?: boolean;
 };
 
 type JournalItem = {
@@ -380,8 +381,16 @@ export default function ProfilePage() {
                     {followLoading ? <Loader2 className="size-3.5 animate-spin" /> : isFollowing ? <UserCheck className="size-3.5" /> : <UserPlus className="size-3.5" />}
                     {isFollowing ? "フォロー中" : "フォロー"}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={handleDM} className="gap-1.5">
-                    <MessageSquare className="size-3.5" />DM
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDM}
+                    disabled={profile?.dmEnabled === false}
+                    title={profile?.dmEnabled === false ? "このユーザーはDMを受け付けていません" : undefined}
+                    className="gap-1.5"
+                  >
+                    <MessageSquare className="size-3.5" />
+                    {profile?.dmEnabled === false ? "DM停止中" : "DM"}
                   </Button>
                 </div>
               )}

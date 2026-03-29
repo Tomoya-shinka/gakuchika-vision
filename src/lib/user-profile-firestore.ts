@@ -16,6 +16,8 @@ export interface FirestoreUserProfile {
   birthDate?: string;
   isStudent?: boolean;
   avatarUrl?: string;
+  commentNotificationsEnabled?: boolean;
+  dmEnabled?: boolean;
 }
 
 const DEFAULT_GRADUATION = "2028-03-31";
@@ -47,6 +49,8 @@ export async function getUserProfile(
         : undefined,
     isStudent: d?.isStudent !== undefined ? Boolean(d.isStudent) : true,
     avatarUrl: typeof d?.avatarUrl === "string" && d.avatarUrl ? d.avatarUrl : undefined,
+    commentNotificationsEnabled: d?.commentNotificationsEnabled !== false,
+    dmEnabled: d?.dmEnabled !== false,
   };
 }
 
@@ -63,6 +67,8 @@ export async function saveUserProfile(
     birthDate?: string;
     isStudent?: boolean;
     avatarUrl?: string;
+    commentNotificationsEnabled?: boolean;
+    dmEnabled?: boolean;
   }
 ): Promise<void> {
   const ref = doc(db, "users", uid);
