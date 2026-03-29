@@ -23,7 +23,7 @@ export default function SettingsPage() {
         <h1 className="text-base font-semibold sm:text-lg">設定</h1>
       </header>
       <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-2xl px-4 pt-3 sm:px-0 sm:pt-4">
+        <div className="px-4 pt-3 sm:px-6 sm:pt-4">
           <Link
             href="/mypage"
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
