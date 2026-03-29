@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,6 +155,7 @@ type AuthorProfile = {
   displayName: string;
   university: string;
   grade: string;
+  avatarUrl?: string;
 };
 
 const DEMO_AUTHORS: Record<string, AuthorProfile> = {
@@ -724,9 +726,12 @@ export default function FeedPage() {
                         {/* アバター + 名前 → プロフィールへのリンク（デモモード時は無効） */}
                         {isDemoMode ? (
                           <div className="flex items-center gap-3">
-                            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                              {initial}
-                            </div>
+                            <Avatar className="size-9 shrink-0">
+                              <AvatarImage src={author?.avatarUrl} alt={name} />
+                              <AvatarFallback className="bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                {initial}
+                              </AvatarFallback>
+                            </Avatar>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                                 <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
@@ -744,9 +749,12 @@ export default function FeedPage() {
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                           >
-                            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                              {initial}
-                            </div>
+                            <Avatar className="size-9 shrink-0">
+                              <AvatarImage src={author?.avatarUrl} alt={name} />
+                              <AvatarFallback className="bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                {initial}
+                              </AvatarFallback>
+                            </Avatar>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                                 <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">

@@ -37,6 +37,8 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { useCommentNotifications } from "@/hooks/useCommentNotifications";
+import { useEffect, useState } from "react";
+import { loadProfile } from "@/lib/user-profile";
 
 const navItems = [
   {
@@ -67,6 +69,15 @@ export function AppSidebar() {
   const isExpanded = state === "expanded";
   const { user, loading, signOut } = useAuth();
   const { hasUnread } = useCommentNotifications();
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      setLocalAvatarUrl(loadProfile().avatarUrl);
+    } catch {
+      setLocalAvatarUrl(undefined);
+    }
+  }, [user?.uid]);
 
   return (
     <Sidebar collapsible="icon">
@@ -190,7 +201,7 @@ export function AppSidebar() {
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Avatar className="size-8 shrink-0">
-                    <AvatarImage src={user.photoURL ?? undefined} alt="" />
+                    <AvatarImage src={localAvatarUrl ?? user.photoURL ?? undefined} alt="" />
                     <AvatarFallback className="text-xs">
                       {user.displayName?.slice(0, 2) ?? user.email?.slice(0, 2) ?? "?"}
                     </AvatarFallback>

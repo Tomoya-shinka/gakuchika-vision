@@ -42,6 +42,9 @@ export async function GET(
           graduationDate: userData.graduationDate
             ? String(userData.graduationDate)
             : undefined,
+          avatarUrl: typeof userData.avatarUrl === "string" && userData.avatarUrl
+            ? userData.avatarUrl
+            : undefined,
         }
       : null;
 

@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { stripHtml, formatDate } from "@/lib/journal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -45,6 +46,7 @@ type ProfileData = {
   grade: string;
   enrollmentDate?: string;
   graduationDate?: string;
+  avatarUrl?: string;
 };
 
 type JournalItem = {
@@ -341,9 +343,12 @@ export default function ProfilePage() {
           {/* プロフィールヘッダー */}
           <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-8">
             {/* アバター */}
-            <div className="flex size-24 shrink-0 items-center justify-center rounded-full bg-sky-100 text-3xl font-bold text-sky-700 shadow-lg ring-4 ring-white dark:bg-sky-900/60 dark:text-sky-300 dark:ring-slate-900 sm:size-28">
-              {initial}
-            </div>
+            <Avatar className="size-24 shrink-0 shadow-lg ring-4 ring-white dark:ring-slate-900 sm:size-28">
+              <AvatarImage src={profile?.avatarUrl} alt={name} />
+              <AvatarFallback className="bg-sky-100 text-3xl font-bold text-sky-700 dark:bg-sky-900/60 dark:text-sky-300">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
 
             {/* プロフィール情報 */}
             <div className="flex flex-1 flex-col items-center gap-3 pb-1 sm:items-start">

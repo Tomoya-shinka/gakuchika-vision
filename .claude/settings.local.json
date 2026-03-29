@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find '/c/Users/yoko5/OneDrive/ドキュメント/Vibe codeing\\(Cursur\\)/gakuchika/src' -name *comment* -o -name *Comment*)"
+    ]
+  }
+}

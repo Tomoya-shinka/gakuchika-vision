@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { stripHtml, formatDate } from "@/lib/journal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -47,6 +48,7 @@ type AuthorProfile = {
   displayName: string;
   university: string;
   grade: string;
+  avatarUrl?: string;
 };
 
 type Comment = {
@@ -320,9 +322,14 @@ export default function FeedDetailPage() {
           <div className="mb-4 flex items-start gap-3">
             <Link
               href={`/profile/${journal.userId}`}
-              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700 transition-opacity hover:opacity-80 dark:bg-slate-800 dark:text-slate-200"
+              className="transition-opacity hover:opacity-80"
             >
-              {initial}
+              <Avatar className="size-10 shrink-0">
+                <AvatarImage src={author?.avatarUrl} alt={name} />
+                <AvatarFallback className="bg-slate-200 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  {initial}
+                </AvatarFallback>
+              </Avatar>
             </Link>
             <div className="min-w-0 flex-1">
               <Link

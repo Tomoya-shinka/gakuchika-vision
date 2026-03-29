@@ -23,6 +23,7 @@ type AuthorProfile = {
   displayName: string;
   university: string;
   grade: string;
+  avatarUrl?: string;
 };
 
 function calcUniversityDayAdmin(enrollment: unknown, createdAt: string): number | undefined {
@@ -155,6 +156,7 @@ export async function GET() {
           displayName: typeof d?.displayName === "string" ? (d.displayName as string) : "ユーザー",
           university: typeof d?.university === "string" ? (d.university as string) : "",
           grade: typeof d?.grade === "string" ? (d.grade as string) : "",
+          avatarUrl: typeof d?.avatarUrl === "string" && d.avatarUrl ? (d.avatarUrl as string) : undefined,
         };
         const enrollment = d?.enrollmentDate;
         items
