@@ -367,7 +367,7 @@ export async function POST(req: Request) {
       model: openai(mode === "coaching" ? "gpt-4o" : "gpt-4o-mini"),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
-      maxTokens: mode === "coaching" ? 120 : 350,
+      maxOutputTokens: mode === "coaching" ? 120 : 350,
     });
 
     return result.toUIMessageStreamResponse();
