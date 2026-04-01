@@ -76,7 +76,6 @@ export async function GET(
       university: typeof authorData?.university === "string" ? authorData.university : "",
       grade: typeof authorData?.grade === "string" ? authorData.grade : "",
       avatarUrl: typeof authorData?.avatarUrl === "string" && authorData.avatarUrl ? authorData.avatarUrl : undefined,
-      commentsEnabled: authorData?.commentsEnabled !== false,
     };
     const universityDay = calcUniversityDay(authorData?.enrollmentDate, createdAt);
 
@@ -118,6 +117,7 @@ export async function GET(
       audioUrl: typeof data.audioUrl === "string" && data.audioUrl ? data.audioUrl : undefined,
       audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
       imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
+      commentsEnabled: data.commentsEnabled !== false,
     };
 
     return NextResponse.json({ journal, author, comments });

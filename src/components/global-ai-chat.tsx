@@ -4,14 +4,13 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
-  X,
   Send,
-  Loader2,
   Bot,
   User,
   MessageSquareDot,
   ChevronDown,
   BrainCircuit,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,6 +77,7 @@ export function GlobalAiChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<ChatMode>("default");
   const [input, setInput] = useState("");
+  const [stopped, setStopped] = useState(false);
   const [contextData, setContextData] = useState<ContextData>({
     journals: [],
     selfAnalysis: [],
@@ -107,7 +107,7 @@ export function GlobalAiChat() {
     [contextData, mode]
   );
 
-  const { messages, sendMessage, status, setMessages } = useChat({ transport });
+  const { messages, sendMessage, status, setMessages, stop } = useChat({ transport });
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -128,8 +128,14 @@ export function GlobalAiChat() {
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
+    setStopped(false);
     sendMessage({ text: trimmed });
     setInput("");
+  };
+
+  const handleStop = () => {
+    stop();
+    setStopped(true);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -142,9 +148,11 @@ export function GlobalAiChat() {
   const handleModeChange = (newMode: ChatMode) => {
     setMode(newMode);
     setMessages([]);
+    setStopped(false);
   };
 
   const handleQuickAction = (text: string) => {
+    setStopped(false);
     sendMessage({ text });
   };
 
@@ -190,7 +198,7 @@ export function GlobalAiChat() {
             <div>
               <p className="text-sm font-semibold">AIアシスタント</p>
               <p className="text-xs text-muted-foreground">
-                {mode === "coaching" ? "壁打ち・コーチングモード" : "ガクチカ・就活をサポート"}
+                {mode === "coaching" ? "壁打ち・コーチングモード" : "日々の振り返りをサポート"}
               </p>
             </div>
           </div>
@@ -263,7 +271,7 @@ export function GlobalAiChat() {
                 )}>
                   {mode === "coaching"
                     ? COACHING_WELCOME_MESSAGE
-                    : "こんにちは！LIFE VISION JOURNALのAIアシスタントです。ジャーナルや自己分析・目標データをもとに、あなたの自己理解と目標達成をサポートします。何でもお気軽にどうぞ！"}
+                    : "ジャーナルのまとめや振り返り、アプリの使い方など、何でも聞いてください。"}
                 </div>
               </div>
 
@@ -363,6 +371,10 @@ export function GlobalAiChat() {
               </div>
             </div>
           )}
+
+          {stopped && !isLoading && (
+            <p className="text-center text-xs text-muted-foreground">回答を停止しました。</p>
+          )}
         </div>
 
         {/* Input */}
@@ -381,12 +393,12 @@ export function GlobalAiChat() {
               type="button"
               size="icon"
               className="shrink-0"
-              disabled={isLoading || !input.trim()}
-              onClick={handleSend}
-              aria-label="送信"
+              disabled={!isLoading && !input.trim()}
+              onClick={isLoading ? handleStop : handleSend}
+              aria-label={isLoading ? "停止" : "送信"}
             >
               {isLoading ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Square className="size-4" />
               ) : (
                 <Send className="size-4" />
               )}

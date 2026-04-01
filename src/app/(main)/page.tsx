@@ -356,15 +356,15 @@ export default function HomePage() {
     if (count <= 0) {
       if (isPastNoJournal) {
         return {
-          cellBg: "bg-slate-100/80 dark:bg-slate-800/40",
-          cellBorder: "border-slate-200/80 dark:border-slate-700/50",
+          cellBg: "bg-slate-200/90 dark:bg-slate-700/60",
+          cellBorder: "border-slate-300/80 dark:border-slate-600/60",
           dotBg: "bg-transparent",
           numText: "text-slate-500 dark:text-slate-400",
         };
       }
       return {
-        cellBg: "bg-transparent",
-        cellBorder: "border-transparent",
+        cellBg: "bg-slate-100/60 dark:bg-slate-800/30",
+        cellBorder: "border-slate-200/60 dark:border-slate-700/30",
         dotBg: "bg-transparent",
         numText: "text-muted-foreground",
       };
@@ -373,23 +373,23 @@ export default function HomePage() {
       return {
         cellBg: "bg-sky-100/80 dark:bg-sky-900/40",
         cellBorder: "border-sky-200/80 dark:border-sky-800/50",
-        dotBg: "bg-sky-500 dark:bg-sky-400",
-        numText: "text-sky-900 dark:text-sky-100",
+        dotBg: "bg-sky-400 dark:bg-sky-400",
+        numText: "text-sky-800 dark:text-sky-100",
       };
     }
     if (count === 2) {
       return {
-        cellBg: "bg-violet-100/80 dark:bg-violet-900/40",
-        cellBorder: "border-violet-200/80 dark:border-violet-800/50",
-        dotBg: "bg-violet-500 dark:bg-violet-400",
-        numText: "text-violet-900 dark:text-violet-100",
+        cellBg: "bg-sky-200/80 dark:bg-sky-800/50",
+        cellBorder: "border-sky-300/80 dark:border-sky-700/60",
+        dotBg: "bg-sky-500 dark:bg-sky-400",
+        numText: "text-sky-900 dark:text-sky-100",
       };
     }
     return {
-      cellBg: "bg-amber-100/80 dark:bg-amber-900/40",
-      cellBorder: "border-amber-200/80 dark:border-amber-800/50",
-      dotBg: "bg-amber-500 dark:bg-amber-400",
-      numText: "text-amber-900 dark:text-amber-100",
+      cellBg: "bg-sky-400/60 dark:bg-sky-600/50",
+      cellBorder: "border-sky-500/60 dark:border-sky-500/50",
+      dotBg: "bg-sky-600 dark:bg-sky-300",
+      numText: "text-sky-950 dark:text-white",
     };
   }
 
@@ -451,11 +451,14 @@ export default function HomePage() {
                 title={count > 0 ? `${dayNum}日（${count}件）` : undefined}
               >
                 <span className={`text-xs font-semibold ${style.numText}`}>{dayNum}</span>
-                {count > 0 ? (
-                  <span className={`mt-1 h-1.5 w-1.5 rounded-full ${style.dotBg}`} />
-                ) : (
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-transparent" />
-                )}
+                <span className="mt-1 flex gap-0.5">
+                  {count > 0
+                    ? Array.from({ length: Math.min(count, 3) }).map((_, i) => (
+                        <span key={i} className={`h-1.5 w-1.5 rounded-full ${style.dotBg}`} />
+                      ))
+                    : <span className="h-1.5 w-1.5 rounded-full bg-transparent" />
+                  }
+                </span>
               </div>
             );
           })}

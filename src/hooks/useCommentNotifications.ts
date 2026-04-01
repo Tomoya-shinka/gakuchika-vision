@@ -47,7 +47,12 @@ export function useCommentNotifications() {
     }
     return () => {
       isActive = false;
-      try { unsub?.(); } catch { /* ignore */ }
+      if (unsub) {
+        // HMR時にFirestore内部状態が壊れている場合があるため非同期で解除
+        setTimeout(() => {
+          try { unsub(); } catch { /* ignore */ }
+        }, 0);
+      }
     };
   }, [user?.uid]);
 

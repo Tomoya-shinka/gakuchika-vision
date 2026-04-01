@@ -42,6 +42,7 @@ type JournalDetail = {
   audioUrl?: string;
   audioDurationSec?: number;
   imageUrls?: string[];
+  commentsEnabled?: boolean;
 };
 
 type AuthorProfile = {
@@ -49,7 +50,6 @@ type AuthorProfile = {
   university: string;
   grade: string;
   avatarUrl?: string;
-  commentsEnabled?: boolean;
 };
 
 type Comment = {
@@ -398,7 +398,7 @@ export default function FeedDetailPage() {
 
           {/* コメント入力欄 */}
           {user && (
-            author?.commentsEnabled === false ? (
+            journal?.commentsEnabled === false ? (
               <p className="mb-5 rounded-lg bg-muted/60 px-4 py-3 text-center text-sm text-muted-foreground">
                 この投稿へのコメントは受け付けていません
               </p>

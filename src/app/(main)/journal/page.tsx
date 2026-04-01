@@ -569,6 +569,14 @@ export default function JournalPage() {
       if (user?.uid) {
         try {
           const db = getDb();
+          const defaultCommentsEnabled = (() => {
+            try {
+              const raw = localStorage.getItem("notification_settings");
+              if (!raw) return true;
+              const parsed = JSON.parse(raw) as Record<string, unknown>;
+              return parsed.commentsEnabled !== "off";
+            } catch { return true; }
+          })();
           const ref = await addDoc(collection(db, "journals"), {
             userId: user.uid,
             title: title.trim() || "",
@@ -582,6 +590,7 @@ export default function JournalPage() {
             createdAt: Timestamp.fromDate(new Date(createdAt)),
             isPublic: visibility === "public",
             visibility,
+            commentsEnabled: defaultCommentsEnabled,
           });
           entryId = ref.id;
         } catch (err) {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   collection,
   doc,
+  addDoc,
   deleteDoc,
   getDoc,
   limit,
@@ -25,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -36,6 +38,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { getDb } from "@/lib/firebase";
 import { formatDate, stripHtml } from "@/lib/journal";
 import { cn } from "@/lib/utils";
@@ -43,8 +55,11 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   Heart,
   MessageCircle,
+  MessageCircleOff,
   RotateCcw,
   MoreHorizontal,
+  Pencil,
+  Feather,
   Trash2,
   Mail,
   Play,
@@ -73,6 +88,8 @@ type FeedJournal = {
   audioUrl?: string;
   audioDurationSec?: number;
   imageUrls?: string[];
+  commentsEnabled?: boolean;
+  postType?: "journal" | "tweet";
 };
 
 function formatDuration(sec: number): string {
@@ -240,6 +257,12 @@ export default function FeedPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", content: "" });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [tweetOpen, setTweetOpen] = useState(false);
+  const [tweetContent, setTweetContent] = useState("");
+  const [isTweeting, setIsTweeting] = useState(false);
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((prev) => {
@@ -248,6 +271,93 @@ export default function FeedPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const handleTweetSubmit = async () => {
+    if (!user?.uid || !tweetContent.trim()) return;
+    setIsTweeting(true);
+    try {
+      const db = getDb();
+      const defaultCommentsEnabled = (() => {
+        try {
+          const raw = localStorage.getItem("notification_settings");
+          if (!raw) return true;
+          const p = JSON.parse(raw) as Record<string, unknown>;
+          return p.commentsEnabled !== "off";
+        } catch { return true; }
+      })();
+      const ref = await addDoc(collection(db, "journals"), {
+        userId: user.uid,
+        content: tweetContent.trim(),
+        isPublic: true,
+        type: "tweet",
+        likes: [],
+        commentsEnabled: defaultCommentsEnabled,
+        createdAt: Timestamp.now(),
+      });
+      const newItem: FeedJournal = {
+        id: ref.id,
+        userId: user.uid,
+        content: tweetContent.trim(),
+        createdAt: new Date().toISOString(),
+        isPublic: true,
+        likes: [],
+        commentsEnabled: defaultCommentsEnabled,
+        postType: "tweet",
+      };
+      setItems((prev) => [newItem, ...prev]);
+      setTweetContent("");
+      setTweetOpen(false);
+    } catch (e) {
+      console.error("[feed] failed to post tweet:", e);
+    } finally {
+      setIsTweeting(false);
+    }
+  };
+
+  const handleEditClick = (item: FeedJournal) => {
+    setEditForm({ title: item.title ?? "", content: item.content });
+    setEditTargetId(item.id);
+  };
+
+  const handleEditSave = async () => {
+    if (!editTargetId) return;
+    setIsSavingEdit(true);
+    try {
+      const db = getDb();
+      await updateDoc(doc(db, "journals", editTargetId), {
+        title: editForm.title.trim() || null,
+        content: editForm.content,
+      });
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === editTargetId
+            ? { ...i, title: editForm.title.trim() || undefined, content: editForm.content }
+            : i
+        )
+      );
+      setEditTargetId(null);
+    } catch (e) {
+      console.error("[feed] failed to edit journal:", e);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleToggleComments = async (item: FeedJournal) => {
+    const nextEnabled = item.commentsEnabled === false ? true : false;
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, commentsEnabled: nextEnabled } : i))
+    );
+    try {
+      const db = getDb();
+      await updateDoc(doc(db, "journals", item.id), { commentsEnabled: nextEnabled });
+    } catch (e) {
+      console.error("[feed] failed to toggle comments:", e);
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, commentsEnabled: item.commentsEnabled } : i))
+      );
+    }
   };
 
   const handleDeleteClick = (id: string) => {
@@ -722,32 +832,40 @@ export default function FeedPage() {
                 >
                   <CardHeader className="relative px-6 pb-0 pt-5 sm:pt-6">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
                         {/* アバター + 名前 → プロフィールへのリンク（デモモード時は無効） */}
                         {isDemoMode ? (
-                          <div className="flex items-center gap-3">
+                          <div className="flex min-w-0 flex-1 items-start gap-3">
                             <Avatar className="size-9 shrink-0">
                               <AvatarImage src={author?.avatarUrl} alt={name} />
                               <AvatarFallback className="bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                 {initial}
                               </AvatarFallback>
                             </Avatar>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-x-2">
+                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
                                   {name}
                                 </p>
-                                <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-                                  {subtitle || "プロフィール未設定"}
-                                </span>
+                                {subtitle && (
+                                  <span className="shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
+                                    {subtitle}
+                                  </span>
+                                )}
                               </div>
+                              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                                <span>{formatDate(item.createdAt)}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.postType === "tweet" ? "bg-sky-50 text-sky-500 dark:bg-sky-900/30 dark:text-sky-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                                  {item.postType === "tweet" ? "つぶやき" : "ジャーナル"}
+                                </span>
+                              </p>
                             </div>
                           </div>
                         ) : (
                           <Link
                             href={`/profile/${item.userId}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                            className="flex min-w-0 flex-1 items-start gap-3 hover:opacity-80 transition-opacity"
                           >
                             <Avatar className="size-9 shrink-0">
                               <AvatarImage src={author?.avatarUrl} alt={name} />
@@ -755,26 +873,26 @@ export default function FeedPage() {
                                 {initial}
                               </AvatarFallback>
                             </Avatar>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                <p className="max-w-[50%] truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-x-2">
+                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
                                   {name}
                                 </p>
-                                <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-                                  {subtitle || "プロフィール未設定"}
-                                </span>
+                                {subtitle && (
+                                  <span className="shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
+                                    {subtitle}
+                                  </span>
+                                )}
                               </div>
+                              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                                <span>{formatDate(item.createdAt)}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.postType === "tweet" ? "bg-sky-50 text-sky-500 dark:bg-sky-900/30 dark:text-sky-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                                  {item.postType === "tweet" ? "つぶやき" : "ジャーナル"}
+                                </span>
+                              </p>
                             </div>
                           </Link>
                         )}
-                        <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
-                          <span>{formatDate(item.createdAt)}</span>
-                          {typeof item.universityDay === "number" && (
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                              大学生活 {item.universityDay}日目
-                            </span>
-                          )}
-                        </p>
                       </div>
                       {user?.uid && item.userId === user.uid && (
                         <DropdownMenu>
@@ -791,8 +909,25 @@ export default function FeedPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
+                              className="gap-2"
+                            >
+                              <Pencil className="size-4" aria-hidden />
+                              編集する
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); void handleToggleComments(item); }}
+                              className="gap-2"
+                            >
+                              {item.commentsEnabled === false
+                                ? <><MessageCircle className="size-4" aria-hidden />コメントを許可する</>
+                                : <><MessageCircleOff className="size-4" aria-hidden />コメントを禁止する</>
+                              }
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
                               variant="destructive"
-                              onClick={() => handleDeleteClick(item.id)}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }}
                               className="gap-2"
                             >
                               <Trash2 className="size-4" aria-hidden />
@@ -837,18 +972,32 @@ export default function FeedPage() {
                     )}
 
                     {item.imageUrls && item.imageUrls.length > 0 && (
-                      <div className={cn("grid gap-1.5 overflow-hidden rounded-xl", item.imageUrls.length === 1 ? "grid-cols-1" : item.imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
-                        {item.imageUrls.map((url, i) => (
-                          // eslint-disable-next-line @next/next/no-img-element
+                      item.imageUrls.length === 1 ? (
+                        // 単枚：元の比率を保ちつつ最大サイズを制限
+                        <div className="flex justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            key={i}
-                            src={url}
-                            alt={`画像 ${i + 1}`}
-                            className="aspect-square w-full rounded-lg object-cover"
+                            src={item.imageUrls[0]}
+                            alt="画像 1"
+                            className="max-h-64 w-auto max-w-full rounded-xl sm:max-h-72"
                             onClick={(e) => e.stopPropagation()}
                           />
-                        ))}
-                      </div>
+                        </div>
+                      ) : (
+                        // 複数枚：グリッド表示（アスペクト比固定）
+                        <div className={cn("grid gap-1.5 overflow-hidden rounded-xl", item.imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+                          {item.imageUrls.map((url, i) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={i}
+                              src={url}
+                              alt={`画像 ${i + 1}`}
+                              className="aspect-square w-full rounded-lg object-cover"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ))}
+                        </div>
+                      )
                     )}
 
                     <div className="mt-4 flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
@@ -895,6 +1044,87 @@ export default function FeedPage() {
         </div>
         )}
       </main>
+
+      {/* つぶやき FAB */}
+      {user && activeTab === "journal" && (
+        <button
+          type="button"
+          onClick={() => setTweetOpen(true)}
+          className="fixed bottom-24 right-4 z-40 flex size-14 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg transition-transform hover:bg-sky-600 hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
+          aria-label="気づきや学びを投稿"
+        >
+          <Feather className="size-6" />
+        </button>
+      )}
+
+      {/* つぶやき Dialog */}
+      <Dialog open={tweetOpen} onOpenChange={(open) => { if (!isTweeting) { setTweetOpen(open); if (!open) setTweetContent(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>気づきや学びを投稿</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            <Textarea
+              placeholder="共有したい学びを書いてみよう！"
+              value={tweetContent}
+              onChange={(e) => {
+                if (e.target.value.length <= 500) setTweetContent(e.target.value);
+              }}
+              rows={5}
+              className="resize-none"
+              autoFocus
+            />
+            <div className={`text-right text-xs ${tweetContent.length >= 480 ? "text-rose-500" : "text-muted-foreground"}`}>
+              {tweetContent.length} / 500
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setTweetOpen(false); setTweetContent(""); }} disabled={isTweeting}>
+              キャンセル
+            </Button>
+            <Button onClick={handleTweetSubmit} disabled={isTweeting || !tweetContent.trim()}>
+              {isTweeting ? "投稿中…" : "投稿する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editTargetId} onOpenChange={(open) => !open && !isSavingEdit && setEditTargetId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>投稿を編集</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-title">タイトル（任意）</Label>
+              <Input
+                id="edit-title"
+                value={editForm.title}
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="タイトルを入力"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-content">本文</Label>
+              <Textarea
+                id="edit-content"
+                value={editForm.content}
+                onChange={(e) => setEditForm((f) => ({ ...f, content: e.target.value }))}
+                rows={6}
+                placeholder="本文を入力"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTargetId(null)} disabled={isSavingEdit}>
+              キャンセル
+            </Button>
+            <Button onClick={handleEditSave} disabled={isSavingEdit || !editForm.content.trim()}>
+              {isSavingEdit ? "保存中…" : "保存する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!deleteTargetId}

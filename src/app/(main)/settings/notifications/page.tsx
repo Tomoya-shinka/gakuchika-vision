@@ -2,51 +2,90 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, CheckCircle2, MessageCircle, Mail } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, MessageCircle, Mail, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
-import { getUserProfile, saveUserProfile } from "@/lib/user-profile-firestore";
+import { getUserProfile, saveUserProfile, toPermissionLevel, type PermissionLevel } from "@/lib/user-profile-firestore";
 
 const NOTIF_STORAGE_KEY = "notification_settings";
 
-function loadLocalSettings(): { commentsEnabled: boolean; dmEnabled: boolean } {
-  if (typeof window === "undefined") return { commentsEnabled: true, dmEnabled: true };
+type NotifSettings = {
+  commentsEnabled: PermissionLevel;
+  commentNotificationsEnabled: PermissionLevel;
+  dmEnabled: PermissionLevel;
+  dmNotificationsEnabled: PermissionLevel;
+};
+
+const DEFAULT_SETTINGS: NotifSettings = {
+  commentsEnabled: "all",
+  commentNotificationsEnabled: "all",
+  dmEnabled: "all",
+  dmNotificationsEnabled: "all",
+};
+
+const PERMISSION_OPTIONS: { value: PermissionLevel; label: string; description: string }[] = [
+  { value: "all", label: "全員", description: "すべてのユーザーに許可" },
+  { value: "followers", label: "フォロワーのみ", description: "フォロワーだけに許可" },
+  { value: "off", label: "OFF", description: "誰にも許可しない" },
+];
+
+function labelOf(v: PermissionLevel): string {
+  return PERMISSION_OPTIONS.find((o) => o.value === v)?.label ?? v;
+}
+
+function loadLocalSettings(): NotifSettings {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(NOTIF_STORAGE_KEY);
-    if (!raw) return { commentsEnabled: true, dmEnabled: true };
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!raw) return DEFAULT_SETTINGS;
+    const p = JSON.parse(raw) as Record<string, unknown>;
     return {
-      commentsEnabled: parsed.commentsEnabled !== false,
-      dmEnabled: parsed.dmEnabled !== false,
+      commentsEnabled: toPermissionLevel(p.commentsEnabled),
+      commentNotificationsEnabled: toPermissionLevel(p.commentNotificationsEnabled),
+      dmEnabled: toPermissionLevel(p.dmEnabled),
+      dmNotificationsEnabled: toPermissionLevel(p.dmNotificationsEnabled),
     };
   } catch {
-    return { commentsEnabled: true, dmEnabled: true };
+    return DEFAULT_SETTINGS;
   }
 }
 
-function saveLocalSettings(settings: { commentsEnabled: boolean; dmEnabled: boolean }) {
+function saveLocalSettings(settings: NotifSettings) {
   if (typeof window === "undefined") return;
   localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(settings));
 }
 
+type ModalState = {
+  key: keyof NotifSettings;
+  label: string;
+} | null;
+
 export default function NotificationsSettingsPage() {
   const { user } = useAuth();
-  const [commentsEnabled, setCommentsEnabled] = useState(true);
-  const [dmEnabled, setDmEnabled] = useState(true);
+  const [settings, setSettings] = useState<NotifSettings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [modal, setModal] = useState<ModalState>(null);
+
+  const set = (key: keyof NotifSettings, value: PermissionLevel) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    setModal(null);
+  };
 
   const load = useCallback(async () => {
     const local = loadLocalSettings();
-    setCommentsEnabled(local.commentsEnabled);
-    setDmEnabled(local.dmEnabled);
+    setSettings(local);
     if (user?.uid) {
       try {
         const fp = await getUserProfile(getDb(), user.uid);
         if (fp) {
-          setCommentsEnabled(fp.commentsEnabled !== false);
-          setDmEnabled(fp.dmEnabled !== false);
+          setSettings({
+            commentsEnabled: fp.commentsEnabled ?? "all",
+            commentNotificationsEnabled: fp.commentNotificationsEnabled ?? "all",
+            dmEnabled: fp.dmEnabled ?? "all",
+            dmNotificationsEnabled: fp.dmNotificationsEnabled ?? "all",
+          });
         }
       } catch { /* localの値をそのまま使用 */ }
     }
@@ -56,7 +95,6 @@ export default function NotificationsSettingsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const settings = { commentsEnabled, dmEnabled };
     saveLocalSettings(settings);
     if (user?.uid) {
       try {
@@ -72,8 +110,10 @@ export default function NotificationsSettingsPage() {
             birthDate: fp.birthDate,
             isStudent: fp.isStudent,
             avatarUrl: fp.avatarUrl,
-            commentsEnabled,
-            dmEnabled,
+            commentsEnabled: settings.commentsEnabled,
+            commentNotificationsEnabled: settings.commentNotificationsEnabled,
+            dmEnabled: settings.dmEnabled,
+            dmNotificationsEnabled: settings.dmNotificationsEnabled,
           });
         }
       } catch { /* Firestore失敗時はlocalStorageが有効 */ }
@@ -83,22 +123,40 @@ export default function NotificationsSettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const items = [
+  const sections = [
     {
-      key: "comments" as const,
+      key: "comment",
       icon: MessageCircle,
-      label: "投稿へのコメント",
-      description: "自分の投稿に他のユーザーがコメントできるようにする",
-      value: commentsEnabled,
-      onChange: setCommentsEnabled,
+      title: "コメント",
+      items: [
+        {
+          key: "commentsEnabled" as keyof NotifSettings,
+          label: "コメントを許可する",
+          description: "自分の投稿にコメントできるユーザーを設定",
+        },
+        {
+          key: "commentNotificationsEnabled" as keyof NotifSettings,
+          label: "コメント通知",
+          description: "コメントを受け取ったときに通知する対象",
+        },
+      ],
     },
     {
-      key: "dm" as const,
+      key: "dm",
       icon: Mail,
-      label: "ダイレクトメッセージ",
-      description: "他のユーザーからのDMを受け取る",
-      value: dmEnabled,
-      onChange: setDmEnabled,
+      title: "ダイレクトメッセージ",
+      items: [
+        {
+          key: "dmEnabled" as keyof NotifSettings,
+          label: "DMを受け取る",
+          description: "DMを送信できるユーザーを設定",
+        },
+        {
+          key: "dmNotificationsEnabled" as keyof NotifSettings,
+          label: "DM通知",
+          description: "DMを受け取ったときに通知する対象",
+        },
+      ],
     },
   ];
 
@@ -113,45 +171,47 @@ export default function NotificationsSettingsPage() {
           設定
         </Link>
         <span className="text-muted-foreground">/</span>
-        <h1 className="text-sm font-semibold sm:text-base">通知・プライバシー設定</h1>
+        <h1 className="text-sm font-semibold sm:text-base">コメント・DM設定</h1>
       </header>
-      <main className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="mx-auto max-w-2xl">
-          <Card>
-            <CardContent className="divide-y divide-border pt-0">
-              {items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.key} className="flex items-center gap-4 py-4">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                      <Icon className="size-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={item.value}
-                      onClick={() => item.onChange(!item.value)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                        item.value ? "bg-sky-500" : "bg-muted-foreground/30"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block size-5 rounded-full bg-white shadow-lg transition-transform ${
-                          item.value ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
 
-          <div className="mt-4 flex items-center gap-3">
+      <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <div className="mx-auto max-w-2xl space-y-4">
+          {sections.map((section) => {
+            const SectionIcon = section.icon;
+            return (
+              <div key={section.key}>
+                <div className="mb-1.5 flex items-center gap-2 px-1">
+                  <SectionIcon className="size-3.5 text-muted-foreground" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {section.title}
+                  </p>
+                </div>
+                <Card>
+                  <CardContent className="divide-y divide-border pt-0">
+                    {section.items.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setModal({ key: item.key, label: item.label })}
+                        className="flex w-full items-center gap-4 py-4 text-left transition-colors hover:bg-muted/40"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{item.label}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+                          <span>{labelOf(settings[item.key])}</span>
+                          <ChevronRight className="size-4" />
+                        </div>
+                      </button>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })}
+
+          <div className="flex items-center gap-3 pt-2">
             <button
               type="button"
               onClick={handleSave}
@@ -169,6 +229,63 @@ export default function NotificationsSettingsPage() {
           </div>
         </div>
       </main>
+
+      {/* 選択モーダル */}
+      {modal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+          onClick={() => setModal(null)}
+        >
+          {/* オーバーレイ */}
+          <div className="absolute inset-0 bg-black/40" />
+
+          {/* モーダル本体 */}
+          <div
+            className="relative z-10 w-full max-w-sm rounded-t-2xl bg-background pb-safe sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold">{modal.label}</h2>
+              <button
+                type="button"
+                onClick={() => setModal(null)}
+                className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* 選択肢 */}
+            <div className="divide-y divide-border">
+              {PERMISSION_OPTIONS.map((opt) => {
+                const isSelected = settings[modal.key] === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => set(modal.key, opt.value)}
+                    className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/40"
+                  >
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${isSelected ? "text-sky-600 dark:text-sky-400" : ""}`}>
+                        {opt.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
+                    </div>
+                    {isSelected && (
+                      <CheckCircle2 className="size-5 shrink-0 text-sky-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 下部の余白（iOS safe area対応） */}
+            <div className="h-4" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

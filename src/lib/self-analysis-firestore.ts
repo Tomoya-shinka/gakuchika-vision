@@ -7,6 +7,7 @@ import {
   setDoc,
   deleteDoc,
   doc,
+  updateDoc,
   Timestamp,
   type Firestore,
 } from "firebase/firestore";
@@ -41,18 +42,20 @@ export function categoryToSectionId(category: string | null): SectionId {
   return "small-wins";
 }
 
+/** アイテムを Firestore に保存し、生成されたドキュメント ID を返す */
 export async function saveSelfAnalysisToFirestore(
   db: Firestore,
   userId: string,
   sectionId: SectionId,
   content: string
-): Promise<void> {
+): Promise<string> {
   const col = collection(db, "users", userId, "self_analysis");
-  await addDoc(col, {
+  const ref = await addDoc(col, {
     sectionId,
     content: content.trim(),
     createdAt: Timestamp.now(),
   });
+  return ref.id;
 }
 
 export async function getSelfAnalysisFromFirestore(
@@ -76,6 +79,25 @@ export async function getSelfAnalysisFromFirestore(
       createdAt,
     };
   });
+}
+
+export async function deleteSelfAnalysisItemFromFirestore(
+  db: Firestore,
+  userId: string,
+  itemId: string
+): Promise<void> {
+  const ref = doc(db, "users", userId, "self_analysis", itemId);
+  await deleteDoc(ref);
+}
+
+export async function updateSelfAnalysisItemInFirestore(
+  db: Firestore,
+  userId: string,
+  itemId: string,
+  content: string
+): Promise<void> {
+  const ref = doc(db, "users", userId, "self_analysis", itemId);
+  await updateDoc(ref, { content: content.trim() });
 }
 
 // ─── フォルダ CRUD ───────────────────────────────────────────────────────────

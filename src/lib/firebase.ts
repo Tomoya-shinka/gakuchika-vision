@@ -69,4 +69,14 @@ export function getAuthInstance() {
   return getAuth(getFirebaseApp());
 }
 
-export const getDb = () => getFirestore(getFirebaseApp());
+// HMR時にインスタンスを再利用してFirestore内部状態エラーを防ぐ
+const _globalDb = globalThis as typeof globalThis & {
+  __firestoreInstance?: ReturnType<typeof getFirestore>;
+};
+
+export const getDb = () => {
+  if (!_globalDb.__firestoreInstance) {
+    _globalDb.__firestoreInstance = getFirestore(getFirebaseApp());
+  }
+  return _globalDb.__firestoreInstance;
+};

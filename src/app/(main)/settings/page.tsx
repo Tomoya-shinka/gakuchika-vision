@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { User, Mic, Bell, ChevronRight, ChevronLeft } from "lucide-react";
+import { User, Mic, MessageSquare, ChevronRight, ChevronLeft } from "lucide-react";
 
 const settingsItems = [
   {
@@ -10,9 +10,9 @@ const settingsItems = [
   },
   {
     href: "/settings/notifications",
-    icon: Bell,
-    label: "通知・プライバシー設定",
-    description: "コメント通知・DM受信のON/OFF",
+    icon: MessageSquare,
+    label: "コメント・DM設定",
+    description: "コメント・DM受信のON/OFF、通知設定",
   },
   {
     href: "/settings/mic",

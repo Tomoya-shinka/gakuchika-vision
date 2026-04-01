@@ -59,10 +59,7 @@ export const FOLDER_ICON_NAMES = [
 const DEFAULT_COLOR_ORDER: ColorId[] = ["amber", "pink", "emerald", "sky"];
 
 export const DEFAULT_FOLDERS: SelfAnalysisFolder[] = [
-  { id: "small-wins", name: "小さな成功体験", emoji: "Sparkles", color: "amber",   description: "自分が達成感を感じたこと",          order: 0, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
-  { id: "fun",        name: "楽しかったこと", emoji: "Heart",     color: "pink",    description: "時間を忘れて没頭したこと",          order: 1, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
-  { id: "strength",   name: "強み",           emoji: "Zap",       color: "emerald", description: "自分が得意なこと・人より上手なこと", order: 2, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
-  { id: "dream",      name: "夢",             emoji: "Rocket",    color: "sky",     description: "将来やりたいこと・なりたい自分",    order: 3, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
+  { id: "small-wins", name: "成功体験", emoji: "Sparkles", color: "amber", description: "自分が達成感を感じたこと", order: 0, createdAt: "2024-01-01T00:00:00.000Z", isDefault: true },
 ];
 
 const STORAGE_KEY = "gakuchika-self-analysis-folders";

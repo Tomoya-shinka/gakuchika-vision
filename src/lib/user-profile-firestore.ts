@@ -6,6 +6,15 @@ import {
 } from "firebase/firestore";
 import { getDb } from "./firebase";
 
+export type PermissionLevel = "all" | "followers" | "off";
+
+/** Firestore に boolean で保存されている旧データも許容する */
+export function toPermissionLevel(v: unknown): PermissionLevel {
+  if (v === false || v === "off") return "off";
+  if (v === "followers") return "followers";
+  return "all";
+}
+
 export interface FirestoreUserProfile {
   displayName: string;
   university: string;
@@ -16,8 +25,10 @@ export interface FirestoreUserProfile {
   birthDate?: string;
   isStudent?: boolean;
   avatarUrl?: string;
-  commentsEnabled?: boolean;
-  dmEnabled?: boolean;
+  commentsEnabled?: PermissionLevel;
+  dmEnabled?: PermissionLevel;
+  commentNotificationsEnabled?: PermissionLevel;
+  dmNotificationsEnabled?: PermissionLevel;
 }
 
 const DEFAULT_GRADUATION = "2028-03-31";
@@ -49,8 +60,10 @@ export async function getUserProfile(
         : undefined,
     isStudent: d?.isStudent !== undefined ? Boolean(d.isStudent) : true,
     avatarUrl: typeof d?.avatarUrl === "string" && d.avatarUrl ? d.avatarUrl : undefined,
-    commentsEnabled: d?.commentsEnabled !== false,
-    dmEnabled: d?.dmEnabled !== false,
+    commentsEnabled: toPermissionLevel(d?.commentsEnabled),
+    dmEnabled: toPermissionLevel(d?.dmEnabled),
+    commentNotificationsEnabled: toPermissionLevel(d?.commentNotificationsEnabled),
+    dmNotificationsEnabled: toPermissionLevel(d?.dmNotificationsEnabled),
   };
 }
 
@@ -67,8 +80,10 @@ export async function saveUserProfile(
     birthDate?: string;
     isStudent?: boolean;
     avatarUrl?: string;
-    commentsEnabled?: boolean;
-    dmEnabled?: boolean;
+    commentsEnabled?: PermissionLevel;
+    dmEnabled?: PermissionLevel;
+    commentNotificationsEnabled?: PermissionLevel;
+    dmNotificationsEnabled?: PermissionLevel;
   }
 ): Promise<void> {
   const ref = doc(db, "users", uid);

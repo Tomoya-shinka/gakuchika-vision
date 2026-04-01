@@ -11,13 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import {
-  Info, Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2, FolderPlus,
+  Plus, MessageCircle, ChevronRight, MoreVertical, Pencil, Trash2, FolderPlus,
   Star, Heart, Smile, ThumbsUp, Zap, Flame, Sun, Sparkles,
   PartyPopper, Laugh, SmilePlus, HeartHandshake,
   Trophy, Target, Crown, Flag, CheckCircle2, Award, Medal, Gem, Ribbon, Badge,
@@ -52,6 +46,12 @@ import {
 } from "@/lib/self-analysis";
 import {
   getSelfAnalysisFromFirestore,
+  saveSelfAnalysisToFirestore,
+  deleteSelfAnalysisItemFromFirestore,
+  updateSelfAnalysisItemInFirestore,
+  getFoldersFromFirestore,
+  saveFolderToFirestore,
+  deleteFolderFromFirestore,
 } from "@/lib/self-analysis-firestore";
 import {
   loadFolders,
@@ -198,6 +198,8 @@ export default function SelfAnalysisPage() {
   // フォルダ削除確認ダイアログ
   const [deleteTargetFolder, setDeleteTargetFolder] = useState<SelfAnalysisFolder | null>(null);
 
+  const MIGRATION_FLAG = "selfAnalysisMigratedV1"; // one-time migration
+
   const load = useCallback(async () => {
     const localItems = loadSelfAnalysisItems();
     if (user?.uid) {
@@ -206,6 +208,28 @@ export default function SelfAnalysisPage() {
           getDb(),
           user.uid
         );
+
+        // 一度きりのマイグレーション: localStorageのアイテムをFirestoreに同期
+        if (!localStorage.getItem(MIGRATION_FLAG)) {
+          const firestoreKeys = new Set(
+            firestoreItems.map((f) => `${f.sectionId}:${f.content}`)
+          );
+          const unsynced = localItems.filter(
+            (i) => !firestoreKeys.has(`${i.sectionId}:${i.text}`)
+          );
+          if (unsynced.length > 0) {
+            await Promise.all(
+              unsynced.map((i) =>
+                saveSelfAnalysisToFirestore(getDb(), user.uid!, i.sectionId, i.text).catch(() => {})
+              )
+            );
+            // マイグレーション後に再取得
+            const refreshed = await getSelfAnalysisFromFirestore(getDb(), user.uid);
+            firestoreItems.splice(0, firestoreItems.length, ...refreshed);
+          }
+          localStorage.setItem(MIGRATION_FLAG, "1");
+        }
+
         const merged = [
           ...localItems,
           ...firestoreItems.map((f) => ({
@@ -227,6 +251,7 @@ export default function SelfAnalysisPage() {
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         setItems(unique);
+        saveSelfAnalysisItems(unique);
       } catch {
         setItems(localItems);
       }
@@ -240,9 +265,23 @@ export default function SelfAnalysisPage() {
   }, [load]);
 
   useEffect(() => {
-    const loaded = loadFolders();
-    setFolders(loaded);
-  }, []);
+    // まずローカルを即時表示し、Firestore で上書き
+    const local = loadFolders();
+    setFolders(local);
+    if (user?.uid) {
+      getFoldersFromFirestore(getDb(), user.uid)
+        .then(async (firestoreFolders) => {
+          if (firestoreFolders.length > 0) {
+            setFolders(firestoreFolders);
+            saveFolders(firestoreFolders);
+          } else {
+            // Firestoreにフォルダーがない場合はlocalのフォルダー（デフォルト含む）を同期
+            await Promise.all(local.map((f) => saveFolderToFirestore(getDb(), user.uid!, f)));
+          }
+        })
+        .catch(() => { /* local をそのまま使用 */ });
+    }
+  }, [user?.uid]);
 
   const counts = getCountBySection(items);
 
@@ -251,14 +290,21 @@ export default function SelfAnalysisPage() {
     setAddText("");
   };
 
-  const handleSaveAdd = () => {
+  const handleSaveAdd = async () => {
     if (!addSection || !addText.trim()) return;
-    const newItem: SelfAnalysisItem = {
-      id: crypto.randomUUID(),
-      sectionId: addSection,
-      text: addText.trim(),
-      createdAt: new Date().toISOString(),
-    };
+    const text = addText.trim();
+    const createdAt = new Date().toISOString();
+    let id = crypto.randomUUID();
+
+    // Firestore に保存してドキュメント ID を取得
+    if (user?.uid) {
+      try {
+        const ref = await saveSelfAnalysisToFirestore(getDb(), user.uid, addSection, text);
+        if (ref) id = ref;
+      } catch { /* ローカル ID で継続 */ }
+    }
+
+    const newItem: SelfAnalysisItem = { id, sectionId: addSection, text, createdAt };
     const next = [newItem, ...items];
     setItems(next);
     saveSelfAnalysisItems(next);
@@ -270,12 +316,18 @@ export default function SelfAnalysisPage() {
     const next = items.filter((i) => i.id !== id);
     setItems(next);
     saveSelfAnalysisItems(next);
+    if (user?.uid) {
+      deleteSelfAnalysisItemFromFirestore(getDb(), user.uid, id).catch(() => {});
+    }
   };
 
   const handleEdit = (id: string, newText: string) => {
     const next = items.map((i) => i.id === id ? { ...i, text: newText } : i);
     setItems(next);
     saveSelfAnalysisItems(next);
+    if (user?.uid) {
+      updateSelfAnalysisItemInFirestore(getDb(), user.uid, id, newText).catch(() => {});
+    }
   };
 
   // ─── フォルダ操作 ───────────────────────────────────────────────────────
@@ -306,6 +358,9 @@ export default function SelfAnalysisPage() {
     const next = [...folders, newFolder];
     setFolders(next);
     saveFolders(next);
+    if (user?.uid) {
+      saveFolderToFirestore(getDb(), user.uid, newFolder).catch(() => {});
+    }
     setShowAddFolder(false);
     resetFolderForm();
   };
@@ -330,6 +385,9 @@ export default function SelfAnalysisPage() {
     const next = folders.map((f) => f.id === editingFolder.id ? updated : f);
     setFolders(next);
     saveFolders(next);
+    if (user?.uid) {
+      saveFolderToFirestore(getDb(), user.uid, updated).catch(() => {});
+    }
     setEditingFolder(null);
     resetFolderForm();
   };
@@ -347,15 +405,22 @@ export default function SelfAnalysisPage() {
     const nextFolders = folders.filter((f) => f.id !== folderId);
     setFolders(nextFolders);
     saveFolders(nextFolders);
+    const deletedItems = items.filter((i) => i.sectionId === folderId);
     const nextItems = items.filter((i) => i.sectionId !== folderId);
     setItems(nextItems);
     saveSelfAnalysisItems(nextItems);
+    if (user?.uid) {
+      deleteFolderFromFirestore(getDb(), user.uid, folderId).catch(() => {});
+      deletedItems.forEach((item) => {
+        deleteSelfAnalysisItemFromFirestore(getDb(), user.uid!, item.id).catch(() => {});
+      });
+    }
     setDeleteTargetFolder(null);
   };
 
   return (
-    <TooltipProvider>
-      <div className="flex min-h-0 flex-1 flex-col bg-[#fafafa] px-4 pb-20 pt-6 dark:bg-slate-950/50 sm:px-6">
+    <>
+    <div className="flex min-h-0 flex-1 flex-col bg-[#fafafa] px-4 pb-20 pt-6 dark:bg-slate-950/50 sm:px-6">
         <header className="mx-auto mb-4 flex w-full max-w-4xl flex-col gap-2">
           <p className="text-xs font-medium uppercase tracking-wide text-sky-600 dark:text-sky-400">
             Self Discovery
@@ -430,25 +495,6 @@ export default function SelfAnalysisPage() {
                           <CardTitle className="truncate text-base font-semibold leading-tight">
                             {folder.name}
                           </CardTitle>
-                          {folder.description && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="shrink-0 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                                  aria-label="このフォルダの説明"
-                                >
-                                  <Info className="size-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="right"
-                                className="max-w-[280px] text-xs"
-                              >
-                                {folder.description}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
                         </div>
                         {folder.description && (
                           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -466,7 +512,7 @@ export default function SelfAnalysisPage() {
                         onClick={() => handleAdd(folder.id)}
                       >
                         <Plus className="size-3.5" />
-                        追加
+                        <span className="hidden sm:inline">追加</span>
                       </Button>
                       <Button
                         asChild
@@ -479,7 +525,7 @@ export default function SelfAnalysisPage() {
                           href={`/self-analysis/chat?folderId=${encodeURIComponent(folder.id)}&folderName=${encodeURIComponent(folder.name)}`}
                         >
                           <MessageCircle className="size-3.5" />
-                          AIと話して整理する
+                          <span className="hidden sm:inline">AIと話して整理する</span>
                         </Link>
                       </Button>
                       {/* フォルダ操作メニュー */}
@@ -678,7 +724,7 @@ export default function SelfAnalysisPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </TooltipProvider>
+    </>
   );
 }
 

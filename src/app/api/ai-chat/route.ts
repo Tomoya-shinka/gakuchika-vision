@@ -49,6 +49,34 @@ function detectSummaryPeriod(messages: UIMessage[]): SummaryPeriod {
   return null;
 }
 
+function getTextFromMessage(m: {
+  role: string;
+  content?: string;
+  parts?: Array<{ type: string; text?: string }>;
+}): string {
+  if (typeof m.content === "string") return m.content;
+  return (
+    m.parts
+      ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("") ?? ""
+  );
+}
+
+function countTurns(raw: UIMessage[]) {
+  const userTurns = raw.filter((m) => m.role === "user").length;
+  const assistantTurns = raw.filter((m) => m.role === "assistant").length;
+  return { userTurns, assistantTurns };
+}
+
+function isCoachingCompleteRequest(lastUserText: string): boolean {
+  const t = lastUserText.trim();
+  if (!t) return false;
+  // 完了ボタン相当の手入力を許容
+  if (/^(完了|終了|終わり|まとめ|まとめて|最終)$/u.test(t)) return true;
+  return false;
+}
+
 /** 期間内のジャーナルを抽出する（週は日曜始まり） */
 function filterJournalsByPeriod(
   journals: JournalContext[],
@@ -155,22 +183,33 @@ function buildSystemPrompt(
   const selfAnalysis = context?.selfAnalysis ?? [];
   const goals = context?.goals;
 
-  // コーチングモード: 専用プロンプト + ユーザーデータを追記
+  // コーチングモード: 専用プロンプト + ユーザーデータをプレーンテキストで追記
   if (mode === "coaching") {
     let prompt = COACHING_SYSTEM_PROMPT;
+    prompt += `\n[参考: ユーザーデータ（会話の中で自然に活用すること）]\n`;
     if (allJournals.length > 0) {
-      prompt += `\n## ジャーナル記録（直近 ${allJournals.length} 件）\n`;
+      prompt += `\nジャーナル記録（直近${allJournals.length}件）:\n`;
       allJournals.forEach((j, i) => {
         const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
         const title = j.title ? `「${j.title}」` : "無題";
-        prompt += `\n### ${i + 1}. ${title} (${date})\n${j.contentPlain}\n`;
+        prompt += `(${i + 1}) ${date} ${title}: ${j.contentPlain}\n`;
       });
-      prompt += "\n";
     } else {
-      prompt += `\n## ジャーナル記録\nまだ記録がありません。\n\n`;
+      prompt += `\nジャーナル記録: まだ記録がありません。\n`;
     }
-    prompt += buildSelfAnalysisSection(selfAnalysis);
-    prompt += buildGoalsSection(goals);
+    if (selfAnalysis.length > 0) {
+      prompt += `\n自己分析メモ:\n`;
+      selfAnalysis.forEach((s) => {
+        prompt += `[${s.folderName}] ${s.text}\n`;
+      });
+    }
+    if (goals) {
+      const parts: string[] = [];
+      if (goals.longTermVision) parts.push(`長期ビジョン: ${goals.longTermVision}`);
+      if (goals.oneYearGoal) parts.push(`1年後の目標: ${goals.oneYearGoal}`);
+      if (goals.oneMonthGoal) parts.push(`今月の目標: ${goals.oneMonthGoal}`);
+      if (parts.length > 0) prompt += `\n目標: ${parts.join(" / ")}\n`;
+    }
     return prompt;
   }
 
@@ -190,51 +229,53 @@ function buildSystemPrompt(
     });
 
     prompt += `
-## まとめの作成指針
-- ${label}全体の流れをわかりやすく整理する
+まとめの作成指針:
+- ${label}全体の流れをわかりやすく整理する（3〜6文程度で簡潔に）
 - 頑張ったこと・気づき・成長をポジティブに伝える
-- ジャーナルに書かれた具体的なエピソードや日付を引用する
-- 「来週/来月につながること」や「気づいた課題」があれば触れる
+- ジャーナルに書かれた具体的なエピソードや日付を自然に引用する
+- 「来週/来月につながること」があれば1文で触れる
 - 回答は日本語で、フレンドリーで温かみのある丁寧な口調にする
-- 見出しと箇条書きを活用して読みやすくまとめる
+- 見出し（###）は使わない。箇条書きは最小限にとどめる
 - 自己分析シートのデータは使わない`;
     return prompt;
   }
 
   // 通常モード: ジャーナル + 自己分析 + 目標を使用
-  let prompt = `あなたは「LIFE VISION JOURNAL」アプリのAIアシスタントです。
-ユーザーのジャーナル・自己分析・目標設定をもとに、自己理解を深め、
-仕事・学業・キャリア・趣味・生活など各自の目標に向けた振り返りとアドバイスをサポートします。
-学生から社会人・キャリアチェンジを考える方まで、幅広いユーザーを支援します。
-
-以下のユーザーデータを参照して、具体的で的確なアドバイスをしてください。
+  let prompt = `あなたは「LIFE VISION JOURNAL」のAIアシスタントです。
+このアプリはジャーナルで日々を記録し、自己分析シートで強みを整理し、目標設定で行動を具体化できます。
+ユーザーの振り返りをサポートし、一緒に考えていくパートナーとして関わってください。
+返答は3〜4文以内の会話調で。見出し・箇条書き・太字は使わない。
+ユーザーの質問には必ず答えた上で、最後にユーザー自身のことを引き出す問いかけを1つ添えてください。
 
 `;
 
   if (allJournals.length > 0) {
-    prompt += `## ジャーナル記録（直近 ${allJournals.length} 件）\n`;
+    prompt += `ジャーナル記録（直近${allJournals.length}件）:\n`;
     allJournals.forEach((j, i) => {
       const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
       const title = j.title ? `「${j.title}」` : "無題";
-      prompt += `\n### ${i + 1}. ${title} (${date})\n${j.contentPlain}\n`;
+      prompt += `(${i + 1}) ${date} ${title}: ${j.contentPlain}\n`;
     });
     prompt += "\n";
   } else {
-    prompt += `## ジャーナル記録\nまだ記録がありません。\n\n`;
+    prompt += `ジャーナル記録: まだ記録がありません。\n\n`;
   }
 
-  prompt += buildSelfAnalysisSection(selfAnalysis);
-  prompt += buildGoalsSection(goals);
+  if (selfAnalysis.length > 0) {
+    prompt += `自己分析メモ:\n`;
+    selfAnalysis.forEach((s) => {
+      prompt += `[${s.folderName}] ${s.text}\n`;
+    });
+    prompt += "\n";
+  }
 
-  prompt += `## あなたの役割と行動指針
-- ユーザーの目標や方向性を見つける手伝いをする
-- 自己分析シートの内容から強みや成功体験を整理・発見する手伝いをする
-- 設定済みの目標に関連するアドバイスや振り返りを積極的に行う
-- 仕事・就活・転職・キャリア・学業・趣味・自己成長など多様なゴールに柔軟に対応する
-- 強みや経験をSTAR法などで整理する手伝いをする（就活・転職・自己PR等に活用できる形で）
-- 具体的なデータ（日付・エピソード・感情・目標）を引用しながら回答する
-- 回答は日本語で、フレンドリーで温かみのある丁寧な口調にする
-- 箇条書きや見出しを活用して読みやすくまとめる`;
+  if (goals) {
+    const parts: string[] = [];
+    if (goals.longTermVision) parts.push(`長期ビジョン: ${goals.longTermVision}`);
+    if (goals.oneYearGoal) parts.push(`1年後の目標: ${goals.oneYearGoal}`);
+    if (goals.oneMonthGoal) parts.push(`今月の目標: ${goals.oneMonthGoal}`);
+    if (parts.length > 0) prompt += `目標設定: ${parts.join(" / ")}\n`;
+  }
 
   return prompt;
 }
@@ -275,17 +316,58 @@ export async function POST(req: Request) {
       return result.toUIMessageStreamResponse();
     }
 
-    const systemPrompt = buildSystemPrompt(
+    let systemPrompt = buildSystemPrompt(
       context ?? {},
       summaryPeriod,
       periodJournals,
       mode
     );
 
+    // コーチングモードの「超簡潔・段階的ヒアリング方式」をAPI側で強制
+    if (mode === "coaching") {
+      const raw = (messages ?? []) as Array<{
+        role: string;
+        content?: string;
+        parts?: Array<{ type: string; text?: string }>;
+      }>;
+      const lastUser = [...raw].reverse().find((m) => m.role === "user");
+      const lastUserText = lastUser ? getTextFromMessage(lastUser) : "";
+      const { userTurns, assistantTurns } = countTurns(raw as UIMessage[]);
+
+      const isFirst = userTurns === 1 && assistantTurns === 0;
+      const completeRequested = isCoachingCompleteRequest(lastUserText);
+      const shouldAutoFinalize = userTurns >= 5; // 通常3〜5なので、5で確実にまとめる
+      const shouldFinalize =
+        completeRequested ||
+        shouldAutoFinalize ||
+        (userTurns >= 3 && /まとめ|整理|結論|アクション|次の一歩/u.test(lastUserText));
+
+      const stageInstruction = isFirst
+        ? `【出力制約: 初回（厳守）】
+- 出力は必ず2文だけ
+- 1文目: ユーザーの目的（長期目標/得意/状況）に対し、あなたが選んだ「最も効果的な解決アプローチ」を1文で提示
+- 2文目: ヒアリングの最初の質問を1つだけ（「？」で終える）
+- 挨拶・自己紹介・流れ説明・応援は禁止`
+        : shouldFinalize
+          ? `【出力制約: 最終提案（厳守）】
+- 質問しない（「？」禁止）
+- 余計な前置きなし
+- 次の2項目を必ず含める（簡潔に）
+対話の要約:（2〜4行）
+具体的なアクションプラン:（2〜4行）`
+          : `【出力制約: ヒアリング中（厳守）】
+- 冒頭でユーザーの回答を短く肯定（1フレーズ）
+- その後すぐ、質問は必ず1つだけ（「？」で終える）
+- 余計な前置き・流れ説明は禁止`;
+
+      systemPrompt = `${systemPrompt}\n\n${stageInstruction}`;
+    }
+
     const result = streamText({
-      model: openai("gpt-4o-mini"),
+      model: openai(mode === "coaching" ? "gpt-4o" : "gpt-4o-mini"),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
+      maxTokens: mode === "coaching" ? 120 : 350,
     });
 
     return result.toUIMessageStreamResponse();

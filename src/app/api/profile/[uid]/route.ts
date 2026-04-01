@@ -45,7 +45,8 @@ export async function GET(
           avatarUrl: typeof userData.avatarUrl === "string" && userData.avatarUrl
             ? userData.avatarUrl
             : undefined,
-          dmEnabled: userData.dmEnabled !== false,
+          dmEnabled: userData.dmEnabled === false ? "off"
+            : (typeof userData.dmEnabled === "string" ? userData.dmEnabled : "all") as string,
         }
       : null;
 

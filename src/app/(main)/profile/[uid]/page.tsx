@@ -47,7 +47,7 @@ type ProfileData = {
   enrollmentDate?: string;
   graduationDate?: string;
   avatarUrl?: string;
-  dmEnabled?: boolean;
+  dmEnabled?: string;
 };
 
 type JournalItem = {
@@ -385,12 +385,12 @@ export default function ProfilePage() {
                     size="sm"
                     variant="outline"
                     onClick={handleDM}
-                    disabled={profile?.dmEnabled === false}
-                    title={profile?.dmEnabled === false ? "このユーザーはDMを受け付けていません" : undefined}
+                    disabled={profile?.dmEnabled === "off"}
+                    title={profile?.dmEnabled === "off" ? "このユーザーはDMを受け付けていません" : undefined}
                     className="gap-1.5"
                   >
                     <MessageSquare className="size-3.5" />
-                    {profile?.dmEnabled === false ? "DM停止中" : "DM"}
+                    {profile?.dmEnabled === "off" ? "DM停止中" : "DM"}
                   </Button>
                 </div>
               )}
