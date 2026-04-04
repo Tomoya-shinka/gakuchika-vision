@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   loadEntries,
   saveEntries,
+  stripHtml,
   type JournalEntry,
   type JournalVisibility,
 } from "@/lib/journal";
@@ -260,6 +261,14 @@ export default function JournalPage() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSelfAnalysisPrompt, setShowSelfAnalysisPrompt] = useState(false);
+
+  // Snap ダイアログ
+  const [snapOpen, setSnapOpen] = useState(false);
+  const [snapText, setSnapText] = useState("");
+  const [isSnapExtracting, setIsSnapExtracting] = useState(false);
+  const [isSnapPosting, setIsSnapPosting] = useState(false);
+  const [snapDone, setSnapDone] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -641,10 +650,31 @@ export default function JournalPage() {
         duration: 4000,
       });
 
-      if (visibility === "private") {
-        router.push("/");
+      const redirectPath = visibility === "private" ? "/" : "/mypage/records";
+      const plainContent = stripHtml(trimmed);
+
+      // 150文字超のジャーナルはSnapダイアログを表示
+      if (plainContent.length > 150) {
+        setPendingRedirect(redirectPath);
+        setSnapText("");
+        setSnapDone(false);
+        setIsSnapExtracting(true);
+        setSnapOpen(true);
+        try {
+          const res = await fetch("/api/extract-insights", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: plainContent }),
+          });
+          const data = await res.json() as { text?: string };
+          setSnapText(data.text ?? "");
+        } catch {
+          setSnapText("");
+        } finally {
+          setIsSnapExtracting(false);
+        }
       } else {
-        router.push("/mypage/records");
+        router.push(redirectPath);
       }
     } finally {
       setIsSaving(false);
@@ -654,6 +684,36 @@ export default function JournalPage() {
   const handleSaveClick = () => {
     if (!hasTitleOrContent) return;
     setIsSaveModalOpen(true);
+  };
+
+  const handleSnapPost = async () => {
+    if (!user?.uid || !snapText.trim()) return;
+    setIsSnapPosting(true);
+    try {
+      const db = getDb();
+      const defaultCommentsEnabled = (() => {
+        try { return localStorage.getItem("commentsEnabled") !== "off"; } catch { return true; }
+      })();
+      await addDoc(collection(db, "journals"), {
+        userId: user.uid,
+        content: snapText.trim(),
+        isPublic: true,
+        type: "snap",
+        likes: [],
+        commentsEnabled: defaultCommentsEnabled,
+        createdAt: Timestamp.now(),
+      });
+      setSnapDone(true);
+    } catch {
+      toast.error("Snapの投稿に失敗しました");
+    } finally {
+      setIsSnapPosting(false);
+    }
+  };
+
+  const handleSnapClose = () => {
+    setSnapOpen(false);
+    if (pendingRedirect) router.push(pendingRedirect);
   };
 
 
@@ -1532,6 +1592,62 @@ export default function JournalPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Snap ダイアログ（保存後） */}
+      <Dialog open={snapOpen} onOpenChange={(open) => { if (!open && !isSnapPosting) handleSnapClose(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-4 text-amber-500" />
+              Snapをフィードに投稿しますか？
+            </DialogTitle>
+            <DialogDescription>
+              ジャーナルから大事な気づきを抽出しました。編集してフィードに投稿できます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            {isSnapExtracting ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                抽出中…
+              </div>
+            ) : snapDone ? (
+              <p className="py-6 text-center text-sm text-emerald-600 dark:text-emerald-400">
+                Snapをフィードに投稿しました！
+              </p>
+            ) : (
+              <>
+                <Textarea
+                  value={snapText}
+                  onChange={(e) => setSnapText(e.target.value)}
+                  className="min-h-[100px] resize-none text-sm"
+                  placeholder="抽出した気づきを確認・編集…"
+                />
+                <div className={`text-right text-xs ${snapText.length >= 480 ? "text-rose-500" : "text-muted-foreground"}`}>
+                  {snapText.length} / 500
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            {snapDone ? (
+              <Button onClick={handleSnapClose}>閉じる</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={handleSnapClose} disabled={isSnapPosting || isSnapExtracting}>
+                  スキップ
+                </Button>
+                <Button
+                  onClick={handleSnapPost}
+                  disabled={isSnapPosting || isSnapExtracting || !snapText.trim()}
+                >
+                  {isSnapPosting ? "投稿中…" : "Snapに投稿"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

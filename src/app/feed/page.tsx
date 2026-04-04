@@ -21,7 +21,6 @@ import {
 } from "firebase/firestore";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,8 +53,6 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import {
   Heart,
-  MessageCircle,
-  MessageCircleOff,
   RotateCcw,
   MoreHorizontal,
   Pencil,
@@ -65,7 +62,6 @@ import {
   Play,
   Pause,
 } from "lucide-react";
-import { useCommentNotifications } from "@/hooks/useCommentNotifications";
 
 type Conversation = {
   id: string;
@@ -89,7 +85,7 @@ type FeedJournal = {
   audioDurationSec?: number;
   imageUrls?: string[];
   commentsEnabled?: boolean;
-  postType?: "journal" | "tweet";
+  postType?: "journal" | "tweet" | "snap";
 };
 
 function formatDuration(sec: number): string {
@@ -237,7 +233,6 @@ function buildSubtitle(p: AuthorProfile | null): string {
 
 export default function FeedPage() {
   const { user } = useAuth();
-  const { markAllRead } = useCommentNotifications();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"journal" | "dm">("journal");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -341,22 +336,6 @@ export default function FeedPage() {
       console.error("[feed] failed to edit journal:", e);
     } finally {
       setIsSavingEdit(false);
-    }
-  };
-
-  const handleToggleComments = async (item: FeedJournal) => {
-    const nextEnabled = item.commentsEnabled === false ? true : false;
-    setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, commentsEnabled: nextEnabled } : i))
-    );
-    try {
-      const db = getDb();
-      await updateDoc(doc(db, "journals", item.id), { commentsEnabled: nextEnabled });
-    } catch (e) {
-      console.error("[feed] failed to toggle comments:", e);
-      setItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, commentsEnabled: item.commentsEnabled } : i))
-      );
     }
   };
 
@@ -554,11 +533,6 @@ export default function FeedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // フィードを開いたら通知を既読化（Firestoreの初期化完了後に実行するため遅延）
-  useEffect(() => {
-    const t = setTimeout(() => { void markAllRead(); }, 500);
-    return () => clearTimeout(t);
-  }, [markAllRead]);
 
   // DMの会話一覧をリアルタイムで取得
   useEffect(() => {
@@ -619,7 +593,6 @@ export default function FeedPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            <MessageCircle className="size-4" />
             みんなのジャーナル
           </button>
           <button
@@ -831,69 +804,19 @@ export default function FeedPage() {
                   className="cursor-pointer border border-slate-100 bg-white p-0 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
                 >
                   <CardHeader className="relative px-6 pb-0 pt-5 sm:pt-6">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 flex-1 items-start gap-3">
-                        {/* アバター + 名前 → プロフィールへのリンク（デモモード時は無効） */}
-                        {isDemoMode ? (
-                          <div className="flex min-w-0 flex-1 items-start gap-3">
-                            <Avatar className="size-9 shrink-0">
-                              <AvatarImage src={author?.avatarUrl} alt={name} />
-                              <AvatarFallback className="bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                {initial}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-baseline gap-x-2">
-                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
-                                  {name}
-                                </p>
-                                {subtitle && (
-                                  <span className="shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
-                                    {subtitle}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                                <span>{formatDate(item.createdAt)}</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.postType === "tweet" ? "bg-sky-50 text-sky-500 dark:bg-sky-900/30 dark:text-sky-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
-                                  {item.postType === "tweet" ? "つぶやき" : "ジャーナル"}
-                                </span>
-                              </p>
-                            </div>
-                          </div>
-                        ) : (
-                          <Link
-                            href={`/profile/${item.userId}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex min-w-0 flex-1 items-start gap-3 hover:opacity-80 transition-opacity"
-                          >
-                            <Avatar className="size-9 shrink-0">
-                              <AvatarImage src={author?.avatarUrl} alt={name} />
-                              <AvatarFallback className="bg-slate-200 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                {initial}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-baseline gap-x-2">
-                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
-                                  {name}
-                                </p>
-                                {subtitle && (
-                                  <span className="shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
-                                    {subtitle}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                                <span>{formatDate(item.createdAt)}</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.postType === "tweet" ? "bg-sky-50 text-sky-500 dark:bg-sky-900/30 dark:text-sky-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
-                                  {item.postType === "tweet" ? "つぶやき" : "ジャーナル"}
-                                </span>
-                              </p>
-                            </div>
-                          </Link>
-                        )}
-                      </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                        <span>{formatDate(item.createdAt)}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          item.postType === "tweet"
+                            ? "bg-sky-50 text-sky-500 dark:bg-sky-900/30 dark:text-sky-400"
+                            : item.postType === "snap"
+                            ? "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
+                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                        }`}>
+                          {item.postType === "tweet" ? "つぶやき" : item.postType === "snap" ? "Snap" : "ジャーナル"}
+                        </span>
+                      </p>
                       {user?.uid && item.userId === user.uid && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -914,15 +837,6 @@ export default function FeedPage() {
                             >
                               <Pencil className="size-4" aria-hidden />
                               編集する
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => { e.stopPropagation(); void handleToggleComments(item); }}
-                              className="gap-2"
-                            >
-                              {item.commentsEnabled === false
-                                ? <><MessageCircle className="size-4" aria-hidden />コメントを許可する</>
-                                : <><MessageCircleOff className="size-4" aria-hidden />コメントを禁止する</>
-                              }
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -1022,17 +936,6 @@ export default function FeedPage() {
                         />
                         <span className="min-w-[1ch] text-[11px] sm:inline">
                           {item.likes.length}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); router.push(`/feed/${item.id}`); }}
-                        className="inline-flex items-center gap-1 rounded-full px-1 py-1 hover:text-sky-500"
-                        aria-label="コメント"
-                      >
-                        <MessageCircle className="size-4" aria-hidden />
-                        <span className="min-w-[1ch] text-[11px] sm:inline">
-                          {item.commentCount ?? 0}
                         </span>
                       </button>
                     </div>

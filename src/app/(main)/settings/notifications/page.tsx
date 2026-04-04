@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, CheckCircle2, MessageCircle, Mail, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Mail, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
@@ -11,15 +11,11 @@ import { getUserProfile, saveUserProfile, toPermissionLevel, type PermissionLeve
 const NOTIF_STORAGE_KEY = "notification_settings";
 
 type NotifSettings = {
-  commentsEnabled: PermissionLevel;
-  commentNotificationsEnabled: PermissionLevel;
   dmEnabled: PermissionLevel;
   dmNotificationsEnabled: PermissionLevel;
 };
 
 const DEFAULT_SETTINGS: NotifSettings = {
-  commentsEnabled: "all",
-  commentNotificationsEnabled: "all",
   dmEnabled: "all",
   dmNotificationsEnabled: "all",
 };
@@ -41,8 +37,6 @@ function loadLocalSettings(): NotifSettings {
     if (!raw) return DEFAULT_SETTINGS;
     const p = JSON.parse(raw) as Record<string, unknown>;
     return {
-      commentsEnabled: toPermissionLevel(p.commentsEnabled),
-      commentNotificationsEnabled: toPermissionLevel(p.commentNotificationsEnabled),
       dmEnabled: toPermissionLevel(p.dmEnabled),
       dmNotificationsEnabled: toPermissionLevel(p.dmNotificationsEnabled),
     };
@@ -81,8 +75,6 @@ export default function NotificationsSettingsPage() {
         const fp = await getUserProfile(getDb(), user.uid);
         if (fp) {
           setSettings({
-            commentsEnabled: fp.commentsEnabled ?? "all",
-            commentNotificationsEnabled: fp.commentNotificationsEnabled ?? "all",
             dmEnabled: fp.dmEnabled ?? "all",
             dmNotificationsEnabled: fp.dmNotificationsEnabled ?? "all",
           });
@@ -110,8 +102,6 @@ export default function NotificationsSettingsPage() {
             birthDate: fp.birthDate,
             isStudent: fp.isStudent,
             avatarUrl: fp.avatarUrl,
-            commentsEnabled: settings.commentsEnabled,
-            commentNotificationsEnabled: settings.commentNotificationsEnabled,
             dmEnabled: settings.dmEnabled,
             dmNotificationsEnabled: settings.dmNotificationsEnabled,
           });
@@ -124,23 +114,6 @@ export default function NotificationsSettingsPage() {
   };
 
   const sections = [
-    {
-      key: "comment",
-      icon: MessageCircle,
-      title: "コメント",
-      items: [
-        {
-          key: "commentsEnabled" as keyof NotifSettings,
-          label: "コメントを許可する",
-          description: "自分の投稿にコメントできるユーザーを設定",
-        },
-        {
-          key: "commentNotificationsEnabled" as keyof NotifSettings,
-          label: "コメント通知",
-          description: "コメントを受け取ったときに通知する対象",
-        },
-      ],
-    },
     {
       key: "dm",
       icon: Mail,
@@ -171,7 +144,7 @@ export default function NotificationsSettingsPage() {
           設定
         </Link>
         <span className="text-muted-foreground">/</span>
-        <h1 className="text-sm font-semibold sm:text-base">コメント・DM設定</h1>
+        <h1 className="text-sm font-semibold sm:text-base">DM設定</h1>
       </header>
 
       <main className="flex-1 overflow-auto p-4 sm:p-6">

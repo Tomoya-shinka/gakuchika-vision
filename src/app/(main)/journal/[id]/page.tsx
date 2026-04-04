@@ -3,10 +3,20 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, Timestamp } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
-import { ArrowLeft, Pause, Play } from "lucide-react";
-import { loadEntries, formatDate } from "@/lib/journal";
+import { ArrowLeft, Loader2, Pause, Play, Sparkles } from "lucide-react";
+import { loadEntries, formatDate, stripHtml } from "@/lib/journal";
+import { useAuth } from "@/contexts/auth-context";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type FirestoreEntry = {
   id: string;
@@ -83,8 +93,16 @@ function VoicePlayer({ src, durationSec }: { src: string; durationSec?: number }
 export default function JournalDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const id = String(params.id ?? "");
   const [firestoreEntry, setFirestoreEntry] = useState<FirestoreEntry | null | undefined>(undefined);
+
+  // AI抽出＆フィード投稿
+  const [extractOpen, setExtractOpen] = useState(false);
+  const [extractedText, setExtractedText] = useState("");
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+  const [postDone, setPostDone] = useState(false);
 
   const localEntry = useMemo(
     () => loadEntries().find((e) => e.id === id),
@@ -155,6 +173,56 @@ export default function JournalDetailPage() {
 
   const loading = firestoreEntry === undefined && !localEntry && id.length > 0;
   const notFound = !loading && !entry;
+
+  const handleExtract = async () => {
+    if (!entry) return;
+    const plain = stripHtml(entry.content);
+    setIsExtracting(true);
+    setExtractedText("");
+    setPostDone(false);
+    setExtractOpen(true);
+    try {
+      const res = await fetch("/api/extract-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: plain }),
+      });
+      const data = await res.json() as { text?: string; error?: string };
+      setExtractedText(data.text ?? "");
+    } catch {
+      setExtractedText("抽出に失敗しました。");
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handlePostToFeed = async () => {
+    if (!user?.uid || !extractedText.trim()) return;
+    setIsPosting(true);
+    try {
+      const db = getDb();
+      const defaultCommentsEnabled = (() => {
+        try {
+          const v = localStorage.getItem("commentsEnabled");
+          return v !== "off";
+        } catch { return true; }
+      })();
+      await addDoc(collection(db, "journals"), {
+        userId: user.uid,
+        content: extractedText.trim(),
+        isPublic: true,
+        type: "snap",
+        likes: [],
+        commentsEnabled: defaultCommentsEnabled,
+        createdAt: Timestamp.now(),
+      });
+      setPostDone(true);
+    } catch {
+      alert("投稿に失敗しました。");
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -279,8 +347,81 @@ export default function JournalDetailPage() {
               ))}
             </div>
           )}
+
+          {/* AI抽出ボタン（ログイン済み・長文のみ表示） */}
+          {user && stripHtml(entry.content).length > 150 && (
+            <div className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-xs"
+                onClick={handleExtract}
+              >
+                <Sparkles className="size-3.5 text-amber-500" />
+                AIで気づきを抽出してフィードに投稿
+              </Button>
+            </div>
+          )}
         </article>
       </main>
+
+      {/* 抽出＆投稿ダイアログ */}
+      <Dialog open={extractOpen} onOpenChange={(open) => { if (!isPosting) { setExtractOpen(open); if (!open) setPostDone(false); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-4 text-amber-500" />
+              AIで抽出した気づき
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            {isExtracting ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                抽出中…
+              </div>
+            ) : postDone ? (
+              <p className="py-6 text-center text-sm text-emerald-600 dark:text-emerald-400">
+                フィードに投稿しました！
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  抽出した内容を確認・編集してからフィードに投稿できます。
+                </p>
+                <Textarea
+                  value={extractedText}
+                  onChange={(e) => setExtractedText(e.target.value)}
+                  className="min-h-[100px] resize-none text-sm"
+                  placeholder="抽出中…"
+                />
+                <div className={`text-right text-xs ${extractedText.length >= 480 ? "text-rose-500" : "text-muted-foreground"}`}>
+                  {extractedText.length} / 500
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            {postDone ? (
+              <Button onClick={() => { setExtractOpen(false); setPostDone(false); }}>
+                閉じる
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setExtractOpen(false)} disabled={isPosting || isExtracting}>
+                  キャンセル
+                </Button>
+                <Button
+                  onClick={handlePostToFeed}
+                  disabled={isPosting || isExtracting || !extractedText.trim()}
+                >
+                  {isPosting ? "投稿中…" : "フィードに投稿"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

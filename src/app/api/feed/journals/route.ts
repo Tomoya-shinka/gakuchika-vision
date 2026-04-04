@@ -18,7 +18,7 @@ type FeedJournalItem = {
   audioDurationSec?: number;
   imageUrls?: string[];
   commentsEnabled?: boolean;
-  postType?: "journal" | "tweet";
+  postType?: "journal" | "tweet" | "snap";
 };
 
 type AuthorProfile = {
@@ -126,7 +126,7 @@ export async function GET() {
         audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
         imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
         commentsEnabled: data.commentsEnabled !== false,
-        postType: data.type === "tweet" ? "tweet" : "journal",
+        postType: data.type === "snap" ? "snap" : data.type === "tweet" ? "tweet" : "journal",
       });
     };
 
