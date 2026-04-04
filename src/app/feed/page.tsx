@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   collection,
@@ -9,15 +8,10 @@ import {
   addDoc,
   deleteDoc,
   getDoc,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
   updateDoc,
   arrayUnion,
   arrayRemove,
   Timestamp,
-  where,
 } from "firebase/firestore";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,18 +52,9 @@ import {
   Pencil,
   Feather,
   Trash2,
-  Mail,
   Play,
   Pause,
 } from "lucide-react";
-
-type Conversation = {
-  id: string;
-  participants: string[];
-  participantNames: Record<string, string>;
-  lastMessage: string;
-  lastMessageAt: string;
-};
 
 type FeedJournal = {
   id: string;
@@ -156,34 +141,6 @@ function VoiceMessagePlayer({ src, durationSec }: { src: string; durationSec?: n
   );
 }
 
-type Comment = {
-  id: string;
-  userId: string;
-  userName: string;
-  text: string;
-  createdAt: string;
-};
-
-type AuthorProfile = {
-  displayName: string;
-  university: string;
-  grade: string;
-  avatarUrl?: string;
-};
-
-const DEMO_AUTHORS: Record<string, AuthorProfile> = {
-  demo_tomoya: {
-    displayName: "TOMOYA",
-    university: "〇〇大学",
-    grade: "3",
-  },
-  demo_yuko: {
-    displayName: "YUKO",
-    university: "△△大学",
-    grade: "2",
-  },
-};
-
 const DEMO_ITEMS: FeedJournal[] = [
   {
     id: "demo-1",
@@ -207,40 +164,10 @@ const DEMO_ITEMS: FeedJournal[] = [
   },
 ];
 
-function toIso(value: unknown): string {
-  if (value instanceof Timestamp) return value.toDate().toISOString();
-  if (typeof value === "string") return value;
-  return new Date().toISOString();
-}
-
-async function fetchAuthorProfile(uid: string): Promise<AuthorProfile | null> {
-  const snap = await getDoc(doc(getDb(), "users", uid));
-  if (!snap.exists()) return null;
-  const d = snap.data() as Record<string, unknown>;
-  return {
-    displayName: String(d.displayName ?? ""),
-    university: String(d.university ?? ""),
-    grade: String(d.grade ?? ""),
-  };
-}
-
-function buildSubtitle(p: AuthorProfile | null): string {
-  const uni = (p?.university ?? "").trim();
-  const grade = (p?.grade ?? "").trim().replace(/年生$/, "");
-  const parts = [uni, grade ? `${grade}年生` : ""].filter(Boolean);
-  return parts.join(" ");
-}
-
 export default function FeedPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"journal" | "dm">("journal");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [dmLoading, setDmLoading] = useState(true);
   const [items, setItems] = useState<FeedJournal[]>([]);
-  const [authors, setAuthors] = useState<Record<string, AuthorProfile | null>>(
-    {}
-  );
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -273,21 +200,12 @@ export default function FeedPage() {
     setIsTweeting(true);
     try {
       const db = getDb();
-      const defaultCommentsEnabled = (() => {
-        try {
-          const raw = localStorage.getItem("notification_settings");
-          if (!raw) return true;
-          const p = JSON.parse(raw) as Record<string, unknown>;
-          return p.commentsEnabled !== "off";
-        } catch { return true; }
-      })();
       const ref = await addDoc(collection(db, "journals"), {
         userId: user.uid,
         content: tweetContent.trim(),
         isPublic: true,
         type: "tweet",
         likes: [],
-        commentsEnabled: defaultCommentsEnabled,
         createdAt: Timestamp.now(),
       });
       const newItem: FeedJournal = {
@@ -297,7 +215,6 @@ export default function FeedPage() {
         createdAt: new Date().toISOString(),
         isPublic: true,
         likes: [],
-        commentsEnabled: defaultCommentsEnabled,
         postType: "tweet",
       };
       setItems((prev) => [newItem, ...prev]);
@@ -400,21 +317,18 @@ export default function FeedPage() {
     }
   };
 
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     setErrorDetail(null);
     setIsDemoMode(false);
     try {
-      // まずサーバーAPIで取得（クライアントの Firestore ルールに依存しない）
       const res = await fetch("/api/feed/journals", { cache: "no-store" });
       if (res.ok) {
         const data = (await res.json()) as
-          | { items?: FeedJournal[]; authors?: Record<string, AuthorProfile> }
+          | { items?: FeedJournal[] }
           | FeedJournal[];
         const rows = Array.isArray(data) ? data : data.items ?? [];
-        const apiAuthors = Array.isArray(data) ? null : data.authors ?? null;
         const filtered = (rows as FeedJournal[]).filter(
           (r) => r && r.userId && r.content
         );
@@ -423,17 +337,6 @@ export default function FeedPage() {
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         setItems(filtered.slice(0, 50));
-        // 著者情報は API の authors のみ使用（クライアントで users を読むと permission-denied になるため絶対に呼ばない）
-        const nextAuthors: Record<string, AuthorProfile | null> = { ...authors };
-        const uids = Array.from(new Set(filtered.map((r) => r.userId))).filter(Boolean);
-        for (const uid of uids) {
-          if (apiAuthors?.[uid]) {
-            nextAuthors[uid] = apiAuthors[uid];
-          } else {
-            nextAuthors[uid] = { displayName: "ユーザー", university: "", grade: "" };
-          }
-        }
-        setAuthors(nextAuthors);
         return;
       }
 
@@ -452,16 +355,10 @@ export default function FeedPage() {
         if (process.env.NODE_ENV !== "production") {
           setIsDemoMode(true);
           setItems(DEMO_ITEMS);
-          setAuthors(
-            Object.fromEntries(
-              Object.entries(DEMO_AUTHORS).map(([k, v]) => [k, v])
-            ) as Record<string, AuthorProfile>
-          );
         }
         return;
       }
 
-      // API が 500 などで失敗した場合はクライアントにフォールバックしない（permission-denied を防ぐ）
       const body = await res.json().catch(() => ({}));
       const apiMsg = typeof body?.error === "string" ? body.error : `サーバーエラー (${res.status})`;
       setError(apiMsg);
@@ -475,11 +372,6 @@ export default function FeedPage() {
       if (process.env.NODE_ENV !== "production") {
         setIsDemoMode(true);
         setItems(DEMO_ITEMS);
-        setAuthors(
-          Object.fromEntries(
-            Object.entries(DEMO_AUTHORS).map(([k, v]) => [k, v])
-          ) as Record<string, AuthorProfile>
-        );
       }
       return;
     } catch (e) {
@@ -497,173 +389,34 @@ export default function FeedPage() {
           : "(未設定)";
 
       console.error("[feed] failed to load public journals:", e);
-      console.error(
-        "[feed] projectId:",
-        projectId,
-        "error.code:",
-        code || "(なし)"
-      );
-
-      if (msg.includes("The query requires an index")) {
-        console.warn(
-          "[feed] Firestore に複合インデックスが必要です。ブラウザコンソールに表示されている URL を開き、提案されたインデックスを作成してから再読み込みしてください。"
-        );
-      }
 
       setError(msg);
       setErrorDetail({ code, projectId });
 
-      // 開発時のUI確認用: Firestoreが落ちたらデモデータで表示
       if (process.env.NODE_ENV !== "production") {
         setIsDemoMode(true);
         setItems(DEMO_ITEMS);
-        setAuthors(
-          Object.fromEntries(
-            Object.entries(DEMO_AUTHORS).map(([k, v]) => [k, v])
-          ) as Record<string, AuthorProfile>
-        );
       }
     } finally {
       setLoading(false);
     }
-  }, [authors]);
+  }, []);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
-  // DMの会話一覧をリアルタイムで取得
-  useEffect(() => {
-    if (!user?.uid) {
-      setDmLoading(false);
-      return;
-    }
-    let isActive = true;
-    const db = getDb();
-    const q = query(
-      collection(db, "conversations"),
-      where("participants", "array-contains", user.uid),
-      orderBy("lastMessageAt", "desc")
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (!isActive) return;
-        const list: Conversation[] = snap.docs.map((d) => {
-          const data = d.data() as Record<string, unknown>;
-          return {
-            id: d.id,
-            participants: (data.participants as string[]) ?? [],
-            participantNames: (data.participantNames as Record<string, string>) ?? {},
-            lastMessage: String(data.lastMessage ?? ""),
-            lastMessageAt: toIso(data.lastMessageAt),
-          };
-        });
-        setConversations(list);
-        setDmLoading(false);
-      },
-      () => { if (isActive) setDmLoading(false); }
-    );
-    return () => {
-      isActive = false;
-      unsub();
-    };
-  }, [user?.uid]);
-
-
   const empty = !loading && !error && items.length === 0;
   const hasPermissionError = !!error && /missing or insufficient permissions/i.test(error);
 
-
   return (
     <div className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-20 flex shrink-0 flex-col border-b border-border bg-background/90 backdrop-blur-sm">
-        <div className="flex h-12 items-center px-3 sm:h-14 sm:px-4">
-          <h1 className="text-base font-semibold sm:text-lg">フィード</h1>
-        </div>
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab("journal")}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
-              activeTab === "journal"
-                ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            みんなのジャーナル
-          </button>
-          <button
-            onClick={() => setActiveTab("dm")}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
-              activeTab === "dm"
-                ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Mail className="size-4" />
-            ダイレクトメッセージ
-          </button>
-        </div>
+      <header className="sticky top-0 z-20 flex shrink-0 items-center border-b border-border bg-background/90 px-3 backdrop-blur-sm sm:px-4" style={{ minHeight: "52px" }}>
+        <h1 className="text-base font-semibold sm:text-lg">フィード</h1>
       </header>
 
       <main className="flex flex-1 overflow-auto bg-gray-50 dark:bg-slate-950/60">
-        {/* DMタブ */}
-        {activeTab === "dm" && (
-          <div className="mx-auto w-full max-w-2xl">
-            {dmLoading && (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-sm text-muted-foreground">読み込み中...</div>
-              </div>
-            )}
-            {!dmLoading && !user && (
-              <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-                <Mail className="size-10 opacity-30" />
-                <p className="text-sm">ログインするとDMが確認できます</p>
-              </div>
-            )}
-            {!dmLoading && user && conversations.length === 0 && (
-              <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-                <Mail className="size-10 opacity-30" />
-                <p className="text-sm">まだメッセージがありません</p>
-                <p className="text-xs">ユーザーのプロフィールを開いてDMを送りましょう</p>
-              </div>
-            )}
-            {conversations.map((conv) => {
-              const otherId = conv.participants.find((p) => p !== user?.uid) ?? "";
-              const otherName = conv.participantNames[otherId] ?? "ユーザー";
-              const initial = otherName.charAt(0).toUpperCase();
-              return (
-                <Link
-                  key={conv.id}
-                  href={`/messages/${conv.id}`}
-                  className="flex items-center gap-3 border-b border-border bg-background px-4 py-4 transition-colors hover:bg-muted/50 sm:px-6"
-                >
-                  <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-slate-200 text-base font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-                    {initial}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-foreground">{otherName}</p>
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
-                        {formatDate(conv.lastMessageAt)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {conv.lastMessage || "メッセージを開始しましょう"}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ジャーナルタブ */}
-        {activeTab === "journal" && (
         <div className="min-h-full w-full px-0 py-4 sm:px-0 sm:py-6">
           <div className="mx-auto flex w-full max-w-[600px] flex-col gap-4 px-4 sm:px-0">
             {loading && (
@@ -712,12 +465,11 @@ export default function FeedPage() {
                         →「新しい秘密鍵の生成」で JSON をダウンロード
                       </li>
                       <li>
-                        ダウンロードした JSON をプロジェクトのフォルダに置き、<code className="rounded bg-muted px-1">firebase-service-account.json</code> にリネーム（またはそのままのファイル名でも可）
+                        ダウンロードした JSON をプロジェクトのフォルダに置き、<code className="rounded bg-muted px-1">firebase-service-account.json</code> にリネーム
                       </li>
                       <li>
                         <code className="rounded bg-muted px-1">.env.local</code> に 1 行追加:{" "}
                         <code className="rounded bg-muted px-1">FIREBASE_SERVICE_ACCOUNT_KEY_PATH=./firebase-service-account.json</code>
-                        （ファイル名を変えた場合はそれに合わせる）
                       </li>
                       <li>開発サーバーを止めて <code className="rounded bg-muted px-1">npm run dev</code> で再起動 → このページで「再読み込み」</li>
                     </ol>
@@ -790,13 +542,9 @@ export default function FeedPage() {
             )}
 
             {items.map((item) => {
-              const author = authors[item.userId] ?? null;
-              const name = (author?.displayName ?? "").trim() || "ユーザー";
-              const subtitle = buildSubtitle(author);
               const plain = stripHtml(item.content);
               const isExpanded = expandedIds.has(item.id);
               const showToggle = plain.length > 140;
-              const initial = name.charAt(0).toUpperCase();
               return (
                 <Card
                   key={item.id}
@@ -887,7 +635,6 @@ export default function FeedPage() {
 
                     {item.imageUrls && item.imageUrls.length > 0 && (
                       item.imageUrls.length === 1 ? (
-                        // 単枚：元の比率を保ちつつ最大サイズを制限
                         <div className="flex justify-center">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -898,7 +645,6 @@ export default function FeedPage() {
                           />
                         </div>
                       ) : (
-                        // 複数枚：グリッド表示（アスペクト比固定）
                         <div className={cn("grid gap-1.5 overflow-hidden rounded-xl", item.imageUrls.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
                           {item.imageUrls.map((url, i) => (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -945,11 +691,10 @@ export default function FeedPage() {
             })}
           </div>
         </div>
-        )}
       </main>
 
       {/* つぶやき FAB */}
-      {user && activeTab === "journal" && (
+      {user && (
         <button
           type="button"
           onClick={() => setTweetOpen(true)}
@@ -1047,7 +792,7 @@ export default function FeedPage() {
               onClick={handleDeleteConfirm}
               disabled={isDeleting}
             >
-              {isDeleting ? "削除中..." : "削除"}
+              {isDeleting ? "削除中…" : "削除する"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1055,4 +800,3 @@ export default function FeedPage() {
     </div>
   );
 }
-
