@@ -421,24 +421,14 @@ export default function SelfAnalysisPage() {
   return (
     <>
     <div className="flex flex-1 flex-col">
-        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-background px-4">
+        <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
           <h1 className="text-base font-semibold">自己分析シート</h1>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="shrink-0 gap-1.5 text-xs"
-            onClick={handleOpenAddFolder}
-          >
-            <FolderPlus className="size-3.5" />
-            フォルダを追加
-          </Button>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#fafafa] px-4 pb-20 pt-4 dark:bg-slate-950/50 sm:px-6">
-          {/* フォルダバッジ */}
-          {folders.length > 0 && (
-            <div className="mx-auto mb-4 flex w-full max-w-4xl flex-wrap gap-2">
+          {/* フォルダバッジ + 追加ボタン */}
+          <div className="mx-auto mb-4 flex w-full max-w-4xl items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
               {folders.map((folder, index) => {
                 const { accent, bgAccent, borderAccent } = getFolderAccent(folder.color, index);
                 return (
@@ -451,7 +441,17 @@ export default function SelfAnalysisPage() {
                 );
               })}
             </div>
-          )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 gap-1.5 text-xs"
+              onClick={handleOpenAddFolder}
+            >
+              <FolderPlus className="size-3.5" />
+              フォルダを追加
+            </Button>
+          </div>
 
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 pb-8">
           {folders.length === 0 ? (
