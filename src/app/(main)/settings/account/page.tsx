@@ -143,7 +143,7 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-2 sm:h-14 sm:px-4">
+      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-border bg-background px-4">
         <Link
           href="/settings"
           className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

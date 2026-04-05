@@ -284,8 +284,8 @@ export default function MyPage() {
   return (
     <div className="flex flex-1 flex-col">
       {/* ヘッダー */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4 sm:h-14">
-        <h1 className="text-base font-semibold sm:text-lg">My Page</h1>
+      <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-background px-4">
+        <h1 className="text-base font-semibold">My Page</h1>
         <Link
           href="/settings"
           className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

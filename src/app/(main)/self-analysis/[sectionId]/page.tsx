@@ -120,7 +120,7 @@ export default function SectionDetailPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#fafafa] dark:bg-slate-950/50">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4">
+      <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-background px-4">
         <Link
           href="/self-analysis"
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

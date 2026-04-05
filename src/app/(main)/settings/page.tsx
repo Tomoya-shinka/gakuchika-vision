@@ -19,7 +19,7 @@ const settingsItems = [
 export default function SettingsPage() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
+      <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
         <h1 className="text-base font-semibold sm:text-lg">設定</h1>
       </header>
       <main className="flex-1 overflow-auto">

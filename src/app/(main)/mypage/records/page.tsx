@@ -228,7 +228,7 @@ export default function MyPageRecords() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-border bg-background px-4">
         <Link
           href="/mypage"
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

@@ -145,7 +145,7 @@ export default function FeedDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
+        <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
           <button type="button" onClick={() => router.back()} className="mr-3 flex size-8 items-center justify-center rounded-full hover:bg-muted">
             <ArrowLeft className="size-4" />
           </button>
@@ -161,7 +161,7 @@ export default function FeedDetailPage() {
   if (error || !journal) {
     return (
       <div className="flex flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
+        <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
           <button type="button" onClick={() => router.back()} className="mr-3 flex size-8 items-center justify-center rounded-full hover:bg-muted">
             <ArrowLeft className="size-4" />
           </button>
@@ -179,7 +179,7 @@ export default function FeedDetailPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
+      <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
         <button type="button" onClick={() => router.back()} className="mr-3 flex size-8 items-center justify-center rounded-full hover:bg-muted">
           <ArrowLeft className="size-4" />
         </button>

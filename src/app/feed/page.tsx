@@ -412,8 +412,8 @@ export default function FeedPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-20 flex shrink-0 items-center border-b border-border bg-background/90 px-3 backdrop-blur-sm sm:px-4" style={{ minHeight: "52px" }}>
-        <h1 className="text-base font-semibold sm:text-lg">フィード</h1>
+      <header className="sticky top-0 z-20 flex h-[52px] shrink-0 items-center border-b border-border bg-background/90 px-4 backdrop-blur-sm">
+        <h1 className="text-base font-semibold">フィード</h1>
       </header>
 
       <main className="flex flex-1 overflow-auto bg-gray-50 dark:bg-slate-950/60">

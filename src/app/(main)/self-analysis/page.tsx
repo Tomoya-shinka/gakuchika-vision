@@ -420,42 +420,38 @@ export default function SelfAnalysisPage() {
 
   return (
     <>
-    <div className="flex min-h-0 flex-1 flex-col bg-[#fafafa] px-4 pb-20 pt-6 dark:bg-slate-950/50 sm:px-6">
-        <header className="mx-auto mb-4 flex w-full max-w-4xl flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-sky-600 dark:text-sky-400">
-            Self Discovery
-          </p>
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-3xl">
-              自己分析シート
-            </h1>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0 gap-1.5 text-xs"
-              onClick={handleOpenAddFolder}
-            >
-              <FolderPlus className="size-3.5" />
-              フォルダを追加
-            </Button>
-          </div>
-
-          {/* Stats Row */}
-          <div className="flex flex-wrap gap-2">
-            {folders.map((folder, index) => {
-              const { accent, bgAccent, borderAccent } = getFolderAccent(folder.color, index);
-              return (
-                <span
-                  key={folder.id}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${bgAccent} ${accent} ${borderAccent} border`}
-                >
-                  <FolderIcon name={folder.emoji} className="size-3" /> {folder.name} {counts[folder.id] ?? 0}件
-                </span>
-              );
-            })}
-          </div>
+    <div className="flex flex-1 flex-col">
+        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-background px-4">
+          <h1 className="text-base font-semibold">自己分析シート</h1>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1.5 text-xs"
+            onClick={handleOpenAddFolder}
+          >
+            <FolderPlus className="size-3.5" />
+            フォルダを追加
+          </Button>
         </header>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#fafafa] px-4 pb-20 pt-4 dark:bg-slate-950/50 sm:px-6">
+          {/* フォルダバッジ */}
+          {folders.length > 0 && (
+            <div className="mx-auto mb-4 flex w-full max-w-4xl flex-wrap gap-2">
+              {folders.map((folder, index) => {
+                const { accent, bgAccent, borderAccent } = getFolderAccent(folder.color, index);
+                return (
+                  <span
+                    key={folder.id}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${bgAccent} ${accent} ${borderAccent} border`}
+                  >
+                    <FolderIcon name={folder.emoji} className="size-3" /> {folder.name} {counts[folder.id] ?? 0}件
+                  </span>
+                );
+              })}
+            </div>
+          )}
 
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 pb-8">
           {folders.length === 0 ? (
@@ -646,6 +642,7 @@ export default function SelfAnalysisPage() {
             })
           )}
         </main>
+        </div>
       </div>
 
       {/* ─── フォルダ作成ダイアログ ─── */}

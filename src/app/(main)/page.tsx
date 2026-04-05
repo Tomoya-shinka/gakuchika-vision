@@ -591,8 +591,8 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 sm:h-14">
-        <h1 className="text-base font-semibold sm:text-lg">ホーム</h1>
+      <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
+        <h1 className="text-base font-semibold">ホーム</h1>
       </header>
 
       {/* ===== PC レイアウト（スクロールなし、高さを埋める）===== */}

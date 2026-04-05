@@ -31,7 +31,7 @@ export default function MyPageGoals() {
   if (data == null) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+        <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-border bg-background px-4">
           <Link
             href="/mypage"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -53,7 +53,7 @@ export default function MyPageGoals() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-4 py-3">
+      <header className="flex h-[52px] shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-4">
         <Link
           href="/mypage"
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

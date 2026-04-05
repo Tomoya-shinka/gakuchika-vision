@@ -272,7 +272,7 @@ export default function SelfAnalysisChatPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+      <header className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-background px-4">
         <Link
           href="/self-analysis"
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground"

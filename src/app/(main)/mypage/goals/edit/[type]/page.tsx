@@ -77,7 +77,7 @@ export default function GoalEditPage() {
   if (!config) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center border-b border-border bg-background px-4">
+        <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
           <Link
             href="/mypage/goals"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
@@ -96,7 +96,7 @@ export default function GoalEditPage() {
   if (data == null) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center border-b border-border bg-background px-4">
+        <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
           <Link
             href="/mypage/goals"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
@@ -114,7 +114,7 @@ export default function GoalEditPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center border-b border-border bg-background px-4 py-3">
+      <header className="flex h-[52px] shrink-0 items-center border-b border-border bg-background px-4">
         <Link
           href="/mypage/goals"
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

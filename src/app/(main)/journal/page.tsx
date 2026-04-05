@@ -726,7 +726,7 @@ export default function JournalPage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-[#fafafa] dark:bg-slate-950/50">
-      <header className="sticky top-0 z-50 flex h-14 w-full shrink-0 flex-nowrap items-center justify-between overflow-visible border-b border-slate-200/60 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
+      <header className="sticky top-0 z-50 flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-background px-4">
         <div className="flex shrink-0 flex-nowrap items-center gap-2">
           <h1 className="text-sm font-medium text-slate-600 dark:text-slate-400">
             ジャーナル
@@ -1329,8 +1329,8 @@ export default function JournalPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg sm:max-w-xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(92dvh,92vh)] w-full max-w-[calc(100vw-1rem)] flex-col gap-4 overflow-hidden sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle>音声の確認</DialogTitle>
             <DialogDescription>
               録音した音声と文字起こしを確認して、エディタに添付できます。
@@ -1338,9 +1338,9 @@ export default function JournalPage() {
           </DialogHeader>
 
           {voiceReview && (
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               {/* 音声プレイヤー */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <audio
                   ref={voiceAudioRef}
                   src={voiceReview.audioUrl}
@@ -1394,9 +1394,9 @@ export default function JournalPage() {
                 </div>
               </div>
 
-              {/* 文字起こし */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
+              {/* 文字起こし（長文はエリア内スクロール。画面が低いときは外側パネルもスクロール可） */}
+              <div className="flex min-h-[12rem] flex-col gap-1.5">
+                <div className="flex shrink-0 items-center gap-2">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300">文字起こし</p>
                   {voiceReview.isTranscribing && (
                     <span className="flex items-center gap-1 text-xs text-slate-400">
@@ -1412,14 +1412,13 @@ export default function JournalPage() {
                   }
                   placeholder={voiceReview.isTranscribing ? "文字起こし中..." : "文字起こし結果がここに表示されます"}
                   disabled={voiceReview.isTranscribing}
-                  rows={4}
-                  className="resize-none text-sm"
+                  className="min-h-[12rem] max-h-[min(62dvh,36rem)] resize-none overflow-y-auto text-sm [field-sizing:fixed]"
                 />
               </div>
             </div>
           )}
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <DialogFooter className="shrink-0 flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               onClick={() => {
