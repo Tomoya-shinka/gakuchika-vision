@@ -265,17 +265,21 @@ export default function HomePage() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const totalCount = snapshot.size;
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+        let totalCount = 0;
         let monthly = 0;
         const dayCounts: Record<number, number> = {};
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const dateSet = new Set<number>();
         snapshot.docs.forEach((d) => {
-          const raw = d.data().createdAt;
+          const data = d.data();
+          // snap・つぶやきはジャーナル統計・カレンダーから除外
+          if (data.type === "snap" || data.type === "tweet") return;
+          totalCount++;
+          const raw = data.createdAt;
           let date: Date;
           if (raw && typeof raw === "object" && "toDate" in raw) {
             date = (raw as { toDate: () => Date }).toDate();
