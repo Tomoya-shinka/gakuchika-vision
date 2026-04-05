@@ -21,7 +21,7 @@ import {
   getPreview,
   type JournalEntry,
 } from "@/lib/journal";
-import { ArrowLeft, BookOpen, MoreVertical, Pencil, Trash2, Globe, Lock, Mic, ImageIcon } from "lucide-react";
+import { ArrowLeft, BookOpen, MoreVertical, Pencil, Trash2, Globe, Lock, Mic, ImageIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -51,6 +51,7 @@ type FirestoreJournal = {
   content: string;
   createdAt: string;
   isPublic: boolean;
+  type?: string;
   audioUrl?: string;
   audioDurationSec?: number;
   imageUrls?: string[];
@@ -67,6 +68,7 @@ export default function MyPageRecords() {
   const [visibilityTargetJournal, setVisibilityTargetJournal] = useState<FirestoreJournal | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"journal" | "snap">("journal");
 
   useEffect(() => {
     if (!user?.uid) {
@@ -119,6 +121,7 @@ export default function MyPageRecords() {
           content: String(data.content ?? ""),
           createdAt,
           isPublic: data.isPublic === true,
+          type: typeof data.type === "string" ? data.type : undefined,
           audioUrl: typeof data.audioUrl === "string" && data.audioUrl ? data.audioUrl : undefined,
           audioDurationSec: typeof data.audioDurationSec === "number" ? data.audioDurationSec : undefined,
           imageUrls: Array.isArray(data.imageUrls) ? (data.imageUrls as string[]).filter((u) => typeof u === "string") : undefined,
@@ -206,7 +209,7 @@ export default function MyPageRecords() {
       await deleteDoc(doc(db, "journals", deleteTargetId));
       toast.success("削除しました");
     } catch (e) {
-      console.error("[mypage/records] failed to delete journal:", e);
+      console.error("[mypage/records] failed to delete:", e);
       toast.error("削除に失敗しました");
       if (target) setFirestoreEntries((list) => [...list, target].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } finally {
@@ -215,8 +218,13 @@ export default function MyPageRecords() {
   };
 
   const useFirestore = Boolean(user?.uid);
-  const entries = useFirestore ? firestoreEntries : [];
+
+  // ジャーナル（snap以外）とSnapに分離
+  const journalEntries = firestoreEntries.filter((e) => e.type !== "snap");
+  const snapEntries = firestoreEntries.filter((e) => e.type === "snap");
   const localList = useFirestore ? [] : localEntries;
+
+  const activeEntries = activeTab === "snap" ? snapEntries : journalEntries;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -229,52 +237,194 @@ export default function MyPageRecords() {
           戻る
         </Link>
         <h1 className="flex-1 text-center text-lg font-semibold">
-          ジャーナルの記録
+          記録
         </h1>
         <span className="w-14" aria-hidden />
       </header>
 
+      {/* タブ */}
+      {useFirestore && (
+        <div className="flex shrink-0 border-b border-border bg-background">
+          <button
+            onClick={() => setActiveTab("journal")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+              activeTab === "journal"
+                ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            ジャーナル
+            {journalEntries.length > 0 && (
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {journalEntries.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("snap")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+              activeTab === "snap"
+                ? "border-amber-500 text-amber-600 dark:text-amber-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Sparkles className="size-3.5" aria-hidden />
+            Snap
+            {snapEntries.length > 0 && (
+              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                {snapEntries.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       <main className="flex flex-1 overflow-auto bg-[#fafafa] px-4 py-6 dark:bg-slate-950/40 sm:px-6">
         <div className="mx-auto w-full max-w-3xl space-y-6">
-          <div className="flex min-h-[52px] flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3">
-            <p className="text-xs text-muted-foreground">
-              これまで書いたジャーナルを振り返り、自己分析やガクチカ作成に活かしましょう。
-            </p>
-            {useFirestore && isStudent && enrollmentDate == null && (
-              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                入学年月日を設定すると、各記録に「大学生活 ○日目」が表示されます（My Page のプロフィール編集から設定できます）。
+
+          {activeTab === "journal" && (
+            <div className="flex min-h-[52px] flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3">
+              <p className="text-xs text-muted-foreground">
+                これまで書いたジャーナルを振り返り、自己分析やガクチカ作成に活かしましょう。
               </p>
-            )}
-          </div>
+              {useFirestore && isStudent && enrollmentDate == null && (
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                  入学年月日を設定すると、各記録に「大学生活 ○日目」が表示されます（My Page のプロフィール編集から設定できます）。
+                </p>
+              )}
+            </div>
+          )}
+
+          {activeTab === "snap" && (
+            <div className="flex min-h-[52px] flex-col gap-2 rounded-lg border border-dashed border-amber-200 bg-amber-50/40 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                ジャーナルから抽出した、あなたの価値観・気づき・経験の記録です。
+              </p>
+            </div>
+          )}
 
           <section>
-            <h2 className="mb-4 text-sm font-medium text-muted-foreground">
-              保存された記録（新しい順）
-            </h2>
-
             {loading ? (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background py-16 text-center shadow-sm">
                 <p className="text-sm text-muted-foreground">読み込み中…</p>
               </div>
-            ) : useFirestore && entries.length === 0 ? (
+            ) : useFirestore && activeEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background py-16 text-center shadow-sm">
-                <BookOpen className="mb-4 size-12 text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  まだ記録がありません
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  ジャーナルページで書いた記録がここに表示されます
-                </p>
-                <Link
-                  href="/journal"
-                  className="mt-4 text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  ジャーナルを書く →
-                </Link>
+                {activeTab === "snap" ? (
+                  <>
+                    <Sparkles className="mb-4 size-12 text-muted-foreground/40" />
+                    <p className="text-sm font-medium text-muted-foreground">まだ Snap がありません</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      ジャーナルを書いた後に Snap として気づきを投稿できます
+                    </p>
+                    <Link
+                      href="/journal"
+                      className="mt-4 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      ジャーナルを書く →
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="mb-4 size-12 text-muted-foreground/40" />
+                    <p className="text-sm font-medium text-muted-foreground">まだ記録がありません</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      ジャーナルページで書いた記録がここに表示されます
+                    </p>
+                    <Link
+                      href="/journal"
+                      className="mt-4 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      ジャーナルを書く →
+                    </Link>
+                  </>
+                )}
               </div>
-            ) : useFirestore ? (
+            ) : useFirestore && activeTab === "snap" ? (
+              /* Snap 一覧 */
               <ul className="flex flex-col gap-4">
-                {entries.map((entry) => {
+                {snapEntries.map((entry) => {
+                  const badgeLabel = entry.isPublic ? "公開" : "非公開";
+                  return (
+                    <li key={entry.id}>
+                      <div className="flex items-stretch gap-2 rounded-2xl border border-amber-100 bg-white shadow-sm dark:border-amber-900/40 dark:bg-slate-900/80">
+                        <div className="min-w-0 flex-1 px-5 py-4">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                                Snap
+                              </span>
+                              <span className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</span>
+                            </div>
+                            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                              {entry.content}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex w-[120px] shrink-0 items-center justify-between gap-1 border-l border-border px-3">
+                          <span
+                            className={cn(
+                              "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium sm:text-xs",
+                              entry.isPublic
+                                ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                            )}
+                          >
+                            {entry.isPublic
+                              ? <Globe className="size-3" aria-hidden />
+                              : <Lock className="size-3" aria-hidden />}
+                            {badgeLabel}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 text-muted-foreground"
+                                onClick={(e) => e.preventDefault()}
+                                aria-label="メニュー"
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleVisibilityClick(entry);
+                                }}
+                              >
+                                {entry.isPublic
+                                  ? <Lock className="mr-2 size-3.5" />
+                                  : <Globe className="mr-2 size-3.5" />}
+                                {entry.isPublic ? "非公開に変更する" : "公開に変更する"}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleDeleteClick(entry.id);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 size-3.5" />
+                                削除
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : useFirestore ? (
+              /* ジャーナル一覧 */
+              <ul className="flex flex-col gap-4">
+                {journalEntries.map((entry) => {
                   const preview = getPreview(entry.content, 60);
                   const badgeLabel = entry.isPublic ? "公開" : "非公開";
                   const univDay =
@@ -325,7 +475,6 @@ export default function MyPageRecords() {
                           </div>
                         </Link>
                         <div className="flex w-[120px] shrink-0 items-center justify-between gap-1 border-l border-border px-3">
-                          {/* ステータスバッジ（表示のみ） */}
                           <span
                             className={cn(
                               "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium sm:text-xs",
@@ -340,8 +489,6 @@ export default function MyPageRecords() {
                               : <Lock className="size-3" aria-hidden />}
                             {badgeLabel}
                           </span>
-
-                          {/* ⋮ メニュー */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -396,12 +543,9 @@ export default function MyPageRecords() {
               <ul className="flex flex-col gap-4">
                 {localList.map((entry) => {
                   const preview = getPreview(entry.content, 60);
-                  const visibility =
-                    entry.visibility === "public" ? "public" : "private";
-                  const badgeLabel =
-                    visibility === "public" ? "公開" : "非公開";
-                  const badgeEmoji =
-                    visibility === "public" ? "🌏" : "🔒";
+                  const visibility = entry.visibility === "public" ? "public" : "private";
+                  const badgeLabel = visibility === "public" ? "公開" : "非公開";
+                  const badgeEmoji = visibility === "public" ? "🌏" : "🔒";
 
                   return (
                     <li key={entry.id}>
@@ -427,9 +571,7 @@ export default function MyPageRecords() {
                             className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                             aria-label={`この記録は${badgeLabel}です`}
                           >
-                            <span className="mr-1" aria-hidden>
-                              {badgeEmoji}
-                            </span>
+                            <span className="mr-1" aria-hidden>{badgeEmoji}</span>
                             {badgeLabel}
                           </span>
                         </div>
@@ -487,7 +629,9 @@ export default function MyPageRecords() {
           <AlertDialogHeader>
             <AlertDialogTitle>本当に削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              公開中の投稿も削除されます。この操作は取り消せません。
+              {activeTab === "snap"
+                ? "この Snap を削除します。元のジャーナルは削除されません。この操作は取り消せません。"
+                : "公開中の投稿も削除されます。この操作は取り消せません。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

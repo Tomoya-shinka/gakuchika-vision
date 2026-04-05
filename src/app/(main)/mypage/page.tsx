@@ -22,8 +22,8 @@ import { cn } from "@/lib/utils";
 
 const menuItems = [
   {
-    title: "ジャーナルの記録を見る",
-    description: "これまでの歩みを振り返る",
+    title: "ジャーナル・Snap の記録を見る",
+    description: "これまでの歩みと気づきを振り返る",
     url: "/mypage/records",
     icon: History,
     iconBg: "bg-slate-100 dark:bg-slate-800/60",
