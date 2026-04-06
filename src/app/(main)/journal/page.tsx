@@ -21,7 +21,8 @@ import {
   type GoalItem,
 } from "@/lib/goals";
 import { getDb } from "@/lib/firebase";
-import { collection, addDoc, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, updateDoc, Timestamp, doc, getDoc } from "firebase/firestore";
+import { addSnapToSelfAnalysis } from "@/lib/snap-to-self-analysis";
 import {
   Sparkles,
   FileText,
@@ -47,6 +48,7 @@ import {
   X,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog,
@@ -263,11 +265,18 @@ export default function JournalPage() {
   const [showSelfAnalysisPrompt, setShowSelfAnalysisPrompt] = useState(false);
 
   // Snap ダイアログ
+  type SnapItem = { text: string; checked: boolean };
+  type SavedSnapItem = { text: string; checked: boolean; docId: string };
+  type SnapDialogStep = "select-save" | "select-post" | "done";
   const [snapOpen, setSnapOpen] = useState(false);
-  const [snapText, setSnapText] = useState("");
+  const [snapItems, setSnapItems] = useState<SnapItem[]>([]);
+  const [savedSnapItems, setSavedSnapItems] = useState<SavedSnapItem[]>([]);
+  const [snapDialogStep, setSnapDialogStep] = useState<SnapDialogStep>("select-save");
   const [isSnapExtracting, setIsSnapExtracting] = useState(false);
-  const [isSnapPosting, setIsSnapPosting] = useState(false);
-  const [snapDone, setSnapDone] = useState(false);
+  const [isSavingSnap, setIsSavingSnap] = useState(false);
+  const [isPostingSnap, setIsPostingSnap] = useState(false);
+  const [snapSavedCount, setSnapSavedCount] = useState(0);
+  const [snapPostedCount, setSnapPostedCount] = useState(0);
   const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   const [isVoiceMode, setIsVoiceMode] = useState(false);
@@ -656,8 +665,11 @@ export default function JournalPage() {
       // 150文字超のジャーナルはSnapダイアログを表示
       if (plainContent.length > 150) {
         setPendingRedirect(redirectPath);
-        setSnapText("");
-        setSnapDone(false);
+        setSnapItems([]);
+        setSavedSnapItems([]);
+        setSnapDialogStep("select-save");
+        setSnapSavedCount(0);
+        setSnapPostedCount(0);
         setIsSnapExtracting(true);
         setSnapOpen(true);
         try {
@@ -666,10 +678,11 @@ export default function JournalPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ content: plainContent }),
           });
-          const data = await res.json() as { text?: string };
-          setSnapText(data.text ?? "");
+          const data = await res.json() as { snaps?: string[]; text?: string };
+          const snaps = data.snaps ?? (data.text ? [data.text] : []);
+          setSnapItems(snaps.map((text) => ({ text, checked: true })));
         } catch {
-          setSnapText("");
+          setSnapItems([]);
         } finally {
           setIsSnapExtracting(false);
         }
@@ -686,28 +699,52 @@ export default function JournalPage() {
     setIsSaveModalOpen(true);
   };
 
-  const handleSnapPost = async () => {
-    if (!user?.uid || !snapText.trim()) return;
-    setIsSnapPosting(true);
+  const handleSnapSave = async () => {
+    const selected = snapItems.filter((s) => s.checked && s.text.trim());
+    if (!user?.uid || selected.length === 0) return;
+    setIsSavingSnap(true);
     try {
       const db = getDb();
-      const defaultCommentsEnabled = (() => {
-        try { return localStorage.getItem("commentsEnabled") !== "off"; } catch { return true; }
-      })();
-      await addDoc(collection(db, "journals"), {
-        userId: user.uid,
-        content: snapText.trim(),
-        isPublic: true,
-        type: "snap",
-        likes: [],
-        commentsEnabled: defaultCommentsEnabled,
-        createdAt: Timestamp.now(),
-      });
-      setSnapDone(true);
+      const results = await Promise.all(
+        selected.map((snap) =>
+          addDoc(collection(db, "journals"), {
+            userId: user.uid,
+            content: snap.text.trim(),
+            isPublic: false,
+            type: "snap",
+            likes: [],
+            createdAt: Timestamp.now(),
+          })
+        )
+      );
+      setSavedSnapItems(selected.map((s, i) => ({ text: s.text.trim(), checked: true, docId: results[i].id })));
+      setSnapSavedCount(selected.length);
+      setSnapDialogStep("select-post");
+      // バックグラウンドで自己分析シートに追加
+      void Promise.all(selected.map((s) => addSnapToSelfAnalysis(user.uid, s.text.trim())));
     } catch {
-      toast.error("Snapの投稿に失敗しました");
+      toast.error("Snapの保存に失敗しました");
     } finally {
-      setIsSnapPosting(false);
+      setIsSavingSnap(false);
+    }
+  };
+
+  const handleSnapPost = async () => {
+    const targets = savedSnapItems.filter((s) => s.checked);
+    setIsPostingSnap(true);
+    try {
+      if (targets.length > 0 && user?.uid) {
+        const db = getDb();
+        await Promise.all(
+          targets.map((s) => updateDoc(doc(db, "journals", s.docId), { isPublic: true }))
+        );
+      }
+      setSnapPostedCount(targets.length);
+      setSnapDialogStep("done");
+    } catch {
+      toast.error("フィードへの投稿に失敗しました");
+    } finally {
+      setIsPostingSnap(false);
     }
   };
 
@@ -1592,55 +1629,113 @@ export default function JournalPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Snap ダイアログ（保存後） */}
-      <Dialog open={snapOpen} onOpenChange={(open) => { if (!open && !isSnapPosting) handleSnapClose(); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+      {/* Snap ダイアログ */}
+      <Dialog open={snapOpen} onOpenChange={(open) => { if (!open && !isSavingSnap && !isPostingSnap) handleSnapClose(); }}>
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-xl">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="size-4 text-amber-500" />
-              Snapをフィードに投稿しますか？
+              {snapDialogStep === "select-save" && "Snapとして保存しますか？"}
+              {snapDialogStep === "select-post" && "フィードに投稿しますか？"}
+              {snapDialogStep === "done" && "完了"}
             </DialogTitle>
             <DialogDescription>
-              ジャーナルから大事な気づきを抽出しました。編集してフィードに投稿できます。
+              {snapDialogStep === "select-save" && "ジャーナルから気づきを抽出しました。保存したいものを選んでください。"}
+              {snapDialogStep === "select-post" && `${snapSavedCount}件のSnapを保存しました。フィードに投稿するものを選んでください。`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-1">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="space-y-3 py-1">
             {isSnapExtracting ? (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
                 抽出中…
               </div>
-            ) : snapDone ? (
-              <p className="py-6 text-center text-sm text-emerald-600 dark:text-emerald-400">
-                Snapをフィードに投稿しました！
-              </p>
+            ) : snapDialogStep === "done" ? (
+              <div className="space-y-1 py-6 text-center text-sm">
+                <p className="text-emerald-600 dark:text-emerald-400">
+                  {snapSavedCount}件のSnapをMyPageに保存しました。
+                </p>
+                {snapPostedCount > 0 && (
+                  <p className="text-muted-foreground">
+                    うち{snapPostedCount}件をフィードに投稿しました。
+                  </p>
+                )}
+              </div>
+            ) : snapDialogStep === "select-save" ? (
+              snapItems.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  抽出に失敗しました。スキップしてください。
+                </p>
+              ) : (
+                snapItems.map((item, i) => (
+                  <div key={i} className="flex gap-3 rounded-lg border border-amber-100 bg-amber-50/40 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                    <Checkbox
+                      id={`snap-save-${i}`}
+                      checked={item.checked}
+                      onCheckedChange={(v) =>
+                        setSnapItems((prev) => prev.map((s, j) => j === i ? { ...s, checked: !!v } : s))
+                      }
+                      className="mt-1 shrink-0"
+                    />
+                    <div className="flex-1 space-y-1">
+                      <Textarea
+                        value={item.text}
+                        onChange={(e) =>
+                          setSnapItems((prev) => prev.map((s, j) => j === i ? { ...s, text: e.target.value } : s))
+                        }
+                        className="min-h-[72px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+                        placeholder="気づきを編集…"
+                      />
+                      <p className={`text-right text-[10px] ${item.text.length >= 480 ? "text-rose-500" : "text-muted-foreground"}`}>
+                        {item.text.length} / 500
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )
             ) : (
-              <>
-                <Textarea
-                  value={snapText}
-                  onChange={(e) => setSnapText(e.target.value)}
-                  className="min-h-[100px] resize-none text-sm"
-                  placeholder="抽出した気づきを確認・編集…"
-                />
-                <div className={`text-right text-xs ${snapText.length >= 480 ? "text-rose-500" : "text-muted-foreground"}`}>
-                  {snapText.length} / 500
+              savedSnapItems.map((item, i) => (
+                <div key={i} className="flex gap-3 rounded-lg border border-sky-100 bg-sky-50/40 p-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+                  <Checkbox
+                    id={`snap-post-${i}`}
+                    checked={item.checked}
+                    onCheckedChange={(v) =>
+                      setSavedSnapItems((prev) => prev.map((s, j) => j === i ? { ...s, checked: !!v } : s))
+                    }
+                    className="mt-1 shrink-0"
+                  />
+                  <p className="flex-1 text-sm leading-relaxed">{item.text}</p>
                 </div>
-              </>
+              ))
             )}
           </div>
-          <DialogFooter>
-            {snapDone ? (
+          </div>
+          <DialogFooter className="shrink-0">
+            {snapDialogStep === "done" ? (
               <Button onClick={handleSnapClose}>閉じる</Button>
+            ) : snapDialogStep === "select-save" ? (
+              <>
+                <Button variant="outline" onClick={handleSnapClose} disabled={isSavingSnap || isSnapExtracting}>
+                  スキップ
+                </Button>
+                <Button
+                  onClick={handleSnapSave}
+                  disabled={isSavingSnap || isSnapExtracting || snapItems.every((s) => !s.checked || !s.text.trim())}
+                >
+                  {(() => { if (isSavingSnap) return "保存中…"; const n = snapItems.filter((s) => s.checked && s.text.trim()).length; return n > 1 ? `保存する（${n}件）` : "保存する"; })()}
+                </Button>
+              </>
             ) : (
               <>
-                <Button variant="outline" onClick={handleSnapClose} disabled={isSnapPosting || isSnapExtracting}>
+                <Button variant="outline" onClick={() => { setSnapPostedCount(0); setSnapDialogStep("done"); }} disabled={isPostingSnap}>
                   スキップ
                 </Button>
                 <Button
                   onClick={handleSnapPost}
-                  disabled={isSnapPosting || isSnapExtracting || !snapText.trim()}
+                  disabled={isPostingSnap || savedSnapItems.every((s) => !s.checked)}
                 >
-                  {isSnapPosting ? "投稿中…" : "Snapに投稿"}
+                  {(() => { if (isPostingSnap) return "投稿中…"; const n = savedSnapItems.filter((s) => s.checked).length; return n > 1 ? `フィードに投稿（${n}件）` : "フィードに投稿"; })()}
                 </Button>
               </>
             )}

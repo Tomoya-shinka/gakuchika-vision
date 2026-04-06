@@ -9,6 +9,8 @@ import {
   getDocs,
   doc,
   getDoc,
+  updateDoc,
+  deleteDoc,
   Timestamp,
 } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
@@ -33,7 +35,31 @@ import {
   Mic,
   ImageIcon,
   BookOpen,
+  MoreVertical,
+  Trash2,
+  Globe,
+  Lock,
+  Pencil,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -170,6 +196,12 @@ export default function MyPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("journal");
 
+  // メニュー操作
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [visibilityTarget, setVisibilityTarget] = useState<PostEntry | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   /* プロフィール読み込み */
   useEffect(() => {
     setGoals(loadGoals());
@@ -236,6 +268,46 @@ export default function MyPage() {
     loadEntries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
+
+  const handleVisibilityConfirm = async () => {
+    const entry = visibilityTarget;
+    if (!entry || togglingId) return;
+    setVisibilityTarget(null);
+    const nextPublic = !entry.isPublic;
+    setTogglingId(entry.id);
+    const prev = [...entries];
+    setEntries((list) => list.map((e) => e.id === entry.id ? { ...e, isPublic: nextPublic } : e));
+    try {
+      await updateDoc(doc(getDb(), "journals", entry.id), {
+        isPublic: nextPublic,
+        visibility: nextPublic ? "public" : "private",
+      });
+      toast.success(nextPublic ? "公開しました" : "非公開にしました");
+    } catch {
+      toast.error("設定の更新に失敗しました");
+      setEntries(prev);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return;
+    const target = entries.find((e) => e.id === deleteTargetId);
+    setIsDeleting(true);
+    const prev = [...entries];
+    setEntries((list) => list.filter((e) => e.id !== deleteTargetId));
+    setDeleteTargetId(null);
+    try {
+      await deleteDoc(doc(getDb(), "journals", deleteTargetId));
+      toast.success("削除しました");
+    } catch {
+      toast.error("削除に失敗しました");
+      if (target) setEntries((list) => [...list, target].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   /* タブ別フィルタ */
   const journalEntries = entries.filter((e) => e.type !== "snap" && e.type !== "tweet");
@@ -315,7 +387,7 @@ export default function MyPage() {
                   <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
                     {[
                       firestoreProfile?.university ?? profile?.university,
-                      firestoreProfile?.grade ? `${firestoreProfile.grade}年生` : profile?.status,
+                      firestoreProfile?.grade || profile?.status || undefined,
                     ]
                       .filter(Boolean)
                       .join("　") || "大学名・学年を設定"}
@@ -409,46 +481,82 @@ export default function MyPage() {
                     ? calculateUnivDay(new Date(entry.createdAt), enrollmentDate)
                     : null;
                 return (
-                  <Link
-                    key={entry.id}
-                    href={`/journal/${entry.id}`}
-                    className="block rounded-2xl border border-border bg-white px-5 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-900/80"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-                          {entry.title?.trim() || preview}
-                        </p>
-                        <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span>{formatDate(entry.createdAt)}</span>
-                          {typeof univDay === "number" && (
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                              大学生活 {univDay}日目
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
-                        {preview}
-                      </p>
-                      {(entry.audioUrl || (entry.imageUrls && entry.imageUrls.length > 0)) && (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          {entry.audioUrl && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-600 dark:bg-sky-900/30 dark:text-sky-400">
-                              <Mic className="size-2.5" aria-hidden />
-                              音声
-                            </span>
-                          )}
-                          {entry.imageUrls && entry.imageUrls.length > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
-                              <ImageIcon className="size-2.5" aria-hidden />
-                              画像 {entry.imageUrls.length}枚
-                            </span>
-                          )}
+                  <div key={entry.id} className="flex items-stretch gap-0 rounded-2xl border border-border bg-white shadow-sm dark:bg-slate-900/80">
+                    <Link
+                      href={`/journal/${entry.id}`}
+                      className="min-w-0 flex-1 px-5 py-4 transition-transform hover:-translate-y-0.5"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+                            {entry.title?.trim() || "タイトル未設定のジャーナル"}
+                          </p>
+                          <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>{formatDate(entry.createdAt)}</span>
+                            {typeof univDay === "number" && (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                                大学生活 {univDay}日目
+                              </span>
+                            )}
+                          </span>
                         </div>
-                      )}
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
+                          {preview}
+                        </p>
+                        {(entry.audioUrl || (entry.imageUrls && entry.imageUrls.length > 0)) && (
+                          <div className="mt-1.5 flex items-center gap-2">
+                            {entry.audioUrl && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-600 dark:bg-sky-900/30 dark:text-sky-400">
+                                <Mic className="size-2.5" aria-hidden />
+                                音声
+                              </span>
+                            )}
+                            {entry.imageUrls && entry.imageUrls.length > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                                <ImageIcon className="size-2.5" aria-hidden />
+                                画像 {entry.imageUrls.length}枚
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                    <div className="flex w-[108px] shrink-0 items-center justify-between gap-1 border-l border-border px-3">
+                      <span className={cn(
+                        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                        entry.isPublic
+                          ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                          : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                      )}>
+                        {entry.isPublic ? <Globe className="size-3" aria-hidden /> : <Lock className="size-3" aria-hidden />}
+                        {entry.isPublic ? "公開" : "非公開"}
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground" onClick={(e) => e.preventDefault()} aria-label="メニュー">
+                            <MoreVertical className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/journal/${entry.id}`}>
+                              <Pencil className="mr-2 size-3.5" />
+                              編集
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setVisibilityTarget(entry)}>
+                            {entry.isPublic ? <Lock className="mr-2 size-3.5" /> : <Globe className="mr-2 size-3.5" />}
+                            {entry.isPublic ? "非公開に変更する" : "公開に変更する"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setDeleteTargetId(entry.id)} className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 size-3.5" />
+                            削除
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  </Link>
+                  </div>
                 );
               })
             ) : (
@@ -457,13 +565,13 @@ export default function MyPage() {
                 <div
                   key={entry.id}
                   className={cn(
-                    "rounded-2xl border bg-white px-5 py-4 shadow-sm dark:bg-slate-900/80",
+                    "flex items-stretch gap-0 rounded-2xl border bg-white shadow-sm dark:bg-slate-900/80",
                     activeTab === "snap"
                       ? "border-amber-100 dark:border-amber-900/40"
                       : "border-sky-100 dark:border-sky-900/40"
                   )}
                 >
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-5 py-4">
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         "rounded-full px-2 py-0.5 text-[10px] font-medium",
@@ -479,12 +587,81 @@ export default function MyPage() {
                       {entry.content}
                     </p>
                   </div>
+                  <div className="flex w-[108px] shrink-0 items-center justify-between gap-1 border-l border-border px-3">
+                    <span className={cn(
+                      "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                      entry.isPublic
+                        ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        : "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                    )}>
+                      {entry.isPublic ? <Globe className="size-3" aria-hidden /> : <Lock className="size-3" aria-hidden />}
+                      {entry.isPublic ? "公開" : "非公開"}
+                    </span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground" aria-label="メニュー">
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem onClick={() => setVisibilityTarget(entry)}>
+                          {entry.isPublic ? <Lock className="mr-2 size-3.5" /> : <Globe className="mr-2 size-3.5" />}
+                          {entry.isPublic ? "非公開に変更する" : "公開に変更する"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setDeleteTargetId(entry.id)} className="text-destructive focus:text-destructive">
+                          <Trash2 className="mr-2 size-3.5" />
+                          削除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               ))
             )}
           </div>
         </main>
       </div>
+
+      {/* 公開設定変更確認ダイアログ */}
+      <AlertDialog open={!!visibilityTarget} onOpenChange={(open) => { if (!open) setVisibilityTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>公開設定を変更しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {visibilityTarget?.isPublic
+                ? "非公開にすると、フィードからも表示されなくなります。"
+                : "公開すると、フィードに表示されます。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setVisibilityTarget(null)}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleVisibilityConfirm}>変更する</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 削除確認ダイアログ */}
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteTargetId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              この操作は取り消せません。フィードからも削除されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting} onClick={() => setDeleteTargetId(null)}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "削除中…" : "削除する"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

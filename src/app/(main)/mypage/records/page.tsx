@@ -442,7 +442,7 @@ export default function MyPageRecords() {
                           <div className="flex flex-col gap-1">
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                               <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-                                {entry.title?.trim() || preview}
+                                {entry.title?.trim() || "タイトル未設定のジャーナル"}
                               </p>
                               <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                 <span>{formatDate(entry.createdAt)}</span>
@@ -557,7 +557,7 @@ export default function MyPageRecords() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                               <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-                                {entry.title || preview}
+                                {entry.title?.trim() || "タイトル未設定のジャーナル"}
                               </p>
                               <span className="text-xs text-muted-foreground">
                                 {formatDate(entry.createdAt)}

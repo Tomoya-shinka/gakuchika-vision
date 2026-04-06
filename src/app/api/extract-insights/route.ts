@@ -15,19 +15,49 @@ export async function POST(req: Request) {
       return Response.json({ error: "API key not configured" }, { status: 503 });
     }
 
+    // 500文字ごとに最大1件、上限3件
+    const len = content.trim().length;
+    const maxCount = Math.max(1, Math.min(3, Math.floor(len / 500)));
+
     const { text } = await generateText({
       model: openai("gpt-4o-mini"),
-      system: `ジャーナルの内容から、ユーザーの価値観・気づき・経験のキーとなる内容を2〜3文の短い文章として抽出してください。
-- 各文は20〜60文字程度
-- 体験談・感情・価値観・気づきを優先して抽出する
-- 箇条書きや記号なし、自然な日本語で
-- フィードに投稿する「つぶやき」として使えるよう、端的でシンプルに
-- 余計な前置き・説明は不要。抽出した文のみ出力する`,
-      prompt: `以下のジャーナルから重要な気づき・価値観・経験を抽出してください:\n\n${content}`,
-      maxOutputTokens: 200,
+      system: `ジャーナルから気づき・価値観・経験を抽出し、Snapとして出力してください。
+
+【抽出ルール】
+1. 文章を約500文字ずつのブロックに分けて読む
+2. 各ブロックから「最も印象的な気づき・体験・価値観」を1つ候補として挙げる
+3. その候補が、すでに挙げた候補と**同じテーマ・同じ結論**なら新しいSnapにせず統合（既存Snapの内容で十分とみなす）
+4. 明らかに異なる観点・体験・気づきであれば新しいSnapとして追加する
+5. 最終的に出力するSnapは最大${maxCount}件。文章が長く異なる気づきが複数ある場合は積極的に${maxCount}件まで出力してよい。ただし似た内容は1件にまとめること
+
+【各Snapの書き方】
+- 1〜2文、60〜150文字程度
+- その人の経験・感情・価値観の本質を捉えた、深みのある文章
+- 表面的なまとめではなく、読んだ人に「なるほど」と思わせる具体性を持たせる
+- 自然な日本語、箇条書き・記号なし
+
+必ず以下のJSON配列形式のみで出力（前置き・説明・コードブロック不要）:
+["Snap1", "Snap2"]`,
+      prompt: `以下のジャーナルを分析してSnapを抽出してください:\n\n${content}`,
+      maxOutputTokens: 600,
     });
 
-    return Response.json({ text: text.trim() });
+    // JSONパース
+    try {
+      const raw = text.trim().replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+      const snaps = JSON.parse(raw) as string[];
+      const filtered = snaps
+        .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        .map((s) => s.trim())
+        .slice(0, 3);
+      if (filtered.length > 0) {
+        return Response.json({ snaps: filtered });
+      }
+    } catch {
+      // フォールバック: 単一テキストとして扱う
+    }
+
+    return Response.json({ snaps: [text.trim()] });
   } catch (err) {
     console.error("[extract-insights] error:", err);
     return Response.json(
