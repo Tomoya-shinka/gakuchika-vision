@@ -41,28 +41,29 @@ type ContextData = {
 };
 
 async function buildContext(userId: string): Promise<ContextData> {
-  // Firestoreからジャーナルを取得
+  // FirestoreからSnapのみ取得（コンパクトな洞察のみAIに渡す）
   let journals: ContextData["journals"] = [];
   try {
     const db = getDb();
-    const q = query(collection(db, "journals"), where("userId", "==", userId));
+    const q = query(
+      collection(db, "journals"),
+      where("userId", "==", userId),
+      where("type", "==", "snap")
+    );
     const snap = await getDocs(q);
     const list: { title?: string; contentPlain: string; createdAt: string }[] = [];
     snap.forEach((d) => {
       const data = d.data();
-      // snap/tweetは除外してジャーナルのみ
-      if (data.type === "snap" || data.type === "tweet") return;
       const createdAt = data.createdAt instanceof Timestamp
         ? data.createdAt.toDate().toISOString()
         : String(data.createdAt ?? "");
       list.push({
-        title: data.title != null ? String(data.title) : undefined,
-        contentPlain: stripHtml(String(data.content ?? "")).slice(0, 600),
+        contentPlain: stripHtml(String(data.content ?? "")),
         createdAt,
       });
     });
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    journals = list.slice(0, 30);
+    journals = list.slice(0, 50);
   } catch {
     // Firestore取得失敗時は空
   }

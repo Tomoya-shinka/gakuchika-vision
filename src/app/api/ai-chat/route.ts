@@ -188,14 +188,13 @@ function buildSystemPrompt(
     let prompt = COACHING_SYSTEM_PROMPT;
     prompt += `\n[参考: ユーザーデータ（会話の中で自然に活用すること）]\n`;
     if (allJournals.length > 0) {
-      prompt += `\nジャーナル記録（直近${allJournals.length}件）:\n`;
+      prompt += `\nSnapメモ（直近${allJournals.length}件・ジャーナルから抽出した洞察）:\n`;
       allJournals.forEach((j, i) => {
         const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
-        const title = j.title ? `「${j.title}」` : "無題";
-        prompt += `(${i + 1}) ${date} ${title}: ${j.contentPlain}\n`;
+        prompt += `(${i + 1}) ${date}: ${j.contentPlain}\n`;
       });
     } else {
-      prompt += `\nジャーナル記録: まだ記録がありません。\n`;
+      prompt += `\nSnapメモ: まだ記録がありません。\n`;
     }
     if (selfAnalysis.length > 0) {
       prompt += `\n自己分析メモ:\n`;
@@ -213,30 +212,28 @@ function buildSystemPrompt(
     return prompt;
   }
 
-  // 振り返りモード: ジャーナルのみ使用
+  // 振り返りモード: Snapのみ使用
   if (summaryPeriod) {
     const label = getPeriodLabel(summaryPeriod);
     let prompt = `あなたは「LIFE VISION JOURNAL」アプリのAIアシスタントです。
 ユーザーの自己理解・目標達成・日々の成長をサポートします。
-ユーザーが${label}の振り返りを求めています。以下の${label}のジャーナル記録のみを参照して、まとめを作成してください。
+ユーザーが${label}の振り返りを求めています。以下の${label}のSnapメモ（ジャーナルから抽出した洞察・気づき）のみを参照して、まとめを作成してください。
 
 `;
-    prompt += `## ${label}のジャーナル記録（${periodJournals.length}件）\n`;
+    prompt += `## ${label}のSnapメモ（${periodJournals.length}件）\n`;
     periodJournals.forEach((j, i) => {
       const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
-      const title = j.title ? `「${j.title}」` : "無題";
-      prompt += `\n### ${i + 1}. ${title} (${date})\n${j.contentPlain}\n`;
+      prompt += `\n(${i + 1}) ${date}: ${j.contentPlain}\n`;
     });
 
     prompt += `
 まとめの作成指針:
 - ${label}全体の流れをわかりやすく整理する（3〜6文程度で簡潔に）
 - 頑張ったこと・気づき・成長をポジティブに伝える
-- ジャーナルに書かれた具体的なエピソードや日付を自然に引用する
+- Snapに書かれた具体的な気づきや日付を自然に引用する
 - 「来週/来月につながること」があれば1文で触れる
 - 回答は日本語で、フレンドリーで温かみのある丁寧な口調にする
-- 見出し（###）は使わない。箇条書きは最小限にとどめる
-- 自己分析シートのデータは使わない`;
+- 見出し（###）は使わない。箇条書きは最小限にとどめる`;
     return prompt;
   }
 
@@ -250,15 +247,14 @@ function buildSystemPrompt(
 `;
 
   if (allJournals.length > 0) {
-    prompt += `ジャーナル記録（直近${allJournals.length}件）:\n`;
+    prompt += `Snapメモ（直近${allJournals.length}件・ジャーナルから抽出した洞察）:\n`;
     allJournals.forEach((j, i) => {
       const date = j.createdAt ? j.createdAt.slice(0, 10) : "";
-      const title = j.title ? `「${j.title}」` : "無題";
-      prompt += `(${i + 1}) ${date} ${title}: ${j.contentPlain}\n`;
+      prompt += `(${i + 1}) ${date}: ${j.contentPlain}\n`;
     });
     prompt += "\n";
   } else {
-    prompt += `ジャーナル記録: まだ記録がありません。\n\n`;
+    prompt += `Snapメモ: まだ記録がありません。\n\n`;
   }
 
   if (selfAnalysis.length > 0) {
@@ -307,7 +303,7 @@ export async function POST(req: Request) {
     // 振り返りモードでジャーナルが0件の場合は即時返答
     if (summaryPeriod && periodJournals.length === 0) {
       const label = getPeriodLabel(summaryPeriod);
-      const noDataMsg = `${label}のジャーナルのデータがありません。ジャーナルを記録してから振り返りをお試しください！`;
+      const noDataMsg = `${label}のSnapがありません。ジャーナルを記録してSnapを保存してから振り返りをお試しください！`;
       const result = streamText({
         model: openai("gpt-4o-mini"),
         system: "ユーザーへ以下のメッセージをそのまま1行で出力してください。追加の説明は不要です。",
