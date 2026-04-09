@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { loadEntries, stripHtml } from "@/lib/journal";
+import { stripHtml } from "@/lib/journal";
 import { loadSelfAnalysisItems } from "@/lib/self-analysis";
 import { loadGoals } from "@/lib/goals";
 import { loadFolders } from "@/lib/self-analysis-folders";
@@ -25,6 +25,9 @@ import {
   COACHING_QUICK_ACTIONS,
   COACHING_WELCOME_MESSAGE,
 } from "@/lib/ai-prompts";
+import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { getDb } from "@/lib/firebase";
+import { useAuth } from "@/contexts/auth-context";
 
 type ContextData = {
   journals: { title?: string; contentPlain: string; createdAt: string }[];
@@ -37,14 +40,32 @@ type ContextData = {
   };
 };
 
-function buildContext(): ContextData {
-  const journals = loadEntries()
-    .slice(0, 30)
-    .map((j) => ({
-      title: j.title,
-      contentPlain: stripHtml(j.content).slice(0, 600),
-      createdAt: j.createdAt,
-    }));
+async function buildContext(userId: string): Promise<ContextData> {
+  // Firestoreからジャーナルを取得
+  let journals: ContextData["journals"] = [];
+  try {
+    const db = getDb();
+    const q = query(collection(db, "journals"), where("userId", "==", userId));
+    const snap = await getDocs(q);
+    const list: { title?: string; contentPlain: string; createdAt: string }[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      // snap/tweetは除外してジャーナルのみ
+      if (data.type === "snap" || data.type === "tweet") return;
+      const createdAt = data.createdAt instanceof Timestamp
+        ? data.createdAt.toDate().toISOString()
+        : String(data.createdAt ?? "");
+      list.push({
+        title: data.title != null ? String(data.title) : undefined,
+        contentPlain: stripHtml(String(data.content ?? "")).slice(0, 600),
+        createdAt,
+      });
+    });
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    journals = list.slice(0, 30);
+  } catch {
+    // Firestore取得失敗時は空
+  }
 
   // フォルダ名を解決（sectionId → フォルダ表示名）
   const folders = loadFolders();
@@ -74,6 +95,7 @@ function buildContext(): ContextData {
 }
 
 export function GlobalAiChat() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<ChatMode>("default");
   const [input, setInput] = useState("");
@@ -88,15 +110,16 @@ export function GlobalAiChat() {
 
   // Load context on mount (client-side only)
   useEffect(() => {
-    setContextData(buildContext());
-  }, []);
+    if (!user?.uid) return;
+    buildContext(user.uid).then(setContextData);
+  }, [user?.uid]);
 
   // Refresh context each time panel opens
   useEffect(() => {
-    if (isOpen) {
-      setContextData(buildContext());
+    if (isOpen && user?.uid) {
+      buildContext(user.uid).then(setContextData);
     }
-  }, [isOpen]);
+  }, [isOpen, user?.uid]);
 
   const transport = useMemo(
     () =>
