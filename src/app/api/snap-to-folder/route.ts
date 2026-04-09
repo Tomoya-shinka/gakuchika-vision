@@ -1,9 +1,17 @@
-import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import OpenAI from "openai";
 
 export const maxDuration = 30;
 
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 type FolderInfo = { id: string; name: string; description?: string };
+
+const INLINE_SYSTEM = `以下のフォルダ一覧から、Snapの内容に最も適切なフォルダを1つ選んでください。
+Snapの内容がどのフォルダにも明確に当てはまらない場合は "null" と答えてください。
+必ずフォルダのIDのみを出力してください（ダブルクォート不要・前置き・説明不要）。
+
+フォルダ一覧:
+{{folder_list}}`;
 
 export async function POST(req: Request) {
   try {
@@ -26,19 +34,30 @@ export async function POST(req: Request) {
       )
       .join("\n");
 
-    const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
-      system: `以下のフォルダ一覧から、Snapの内容に最も適切なフォルダを1つ選んでください。
-Snapの内容がどのフォルダにも明確に当てはまらない場合は "null" と答えてください。
-必ずフォルダのIDのみを出力してください（ダブルクォート不要・前置き・説明不要）。
+    const promptId = process.env.OPENAI_PROMPT_SNAP_TO_FOLDER;
 
-フォルダ一覧:
-${folderList}`,
-      prompt: `Snap内容: 「${snapContent.trim()}」`,
-      maxOutputTokens: 60,
-    });
+    const response = await client.responses.create(
+      promptId
+        ? {
+            model: "gpt-4o-mini",
+            prompt: {
+              id: promptId,
+              variables: {
+                folder_list: folderList,
+                snap_content: snapContent.trim(),
+              },
+            },
+            max_output_tokens: 60,
+          }
+        : {
+            model: "gpt-4o-mini",
+            instructions: INLINE_SYSTEM.replace("{{folder_list}}", folderList),
+            input: `Snap内容: 「${snapContent.trim()}」`,
+            max_output_tokens: 60,
+          }
+    );
 
-    const raw = text.trim().replace(/^["']|["']$/g, "");
+    const raw = (response.output_text ?? "").trim().replace(/^["']|["']$/g, "");
     const folderId = folders.some((f) => f.id === raw) ? raw : null;
 
     return Response.json({ folderId });

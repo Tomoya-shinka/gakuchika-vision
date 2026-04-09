@@ -130,7 +130,7 @@ export async function POST(req: Request) {
     const lastUser = rawMessages.filter((m) => m.role === "user").pop();
     const lastText = lastUser ? getMessageText(lastUser) : "";
 
-    const model = openai("gpt-4o-mini");
+    const model = openai.responses("gpt-4o-mini");
 
     if (
       lastText.trim() === START_MARKER ||

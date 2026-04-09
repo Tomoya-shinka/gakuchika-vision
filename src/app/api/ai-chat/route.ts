@@ -305,7 +305,7 @@ export async function POST(req: Request) {
       const label = getPeriodLabel(summaryPeriod);
       const noDataMsg = `${label}のSnapがありません。ジャーナルを記録してSnapを保存してから振り返りをお試しください！`;
       const result = streamText({
-        model: openai("gpt-4o-mini"),
+        model: openai.responses("gpt-4o-mini"),
         system: "ユーザーへ以下のメッセージをそのまま1行で出力してください。追加の説明は不要です。",
         messages: [{ role: "user" as const, content: noDataMsg }],
       });
@@ -360,7 +360,7 @@ export async function POST(req: Request) {
     }
 
     const result = streamText({
-      model: openai(mode === "coaching" ? "gpt-4o" : "gpt-4o-mini"),
+      model: openai.responses(mode === "coaching" ? "gpt-4o" : "gpt-4o-mini"),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       maxOutputTokens: mode === "coaching" ? 120 : 350,

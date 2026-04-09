@@ -1,8 +1,10 @@
-import { generateText, convertToModelMessages, type UIMessage } from "ai";
-import { openai } from "@ai-sdk/openai";
+import OpenAI from "openai";
+import type { UIMessage } from "ai";
 import type { SectionId } from "@/lib/self-analysis";
 
 export const maxDuration = 30;
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 type ChatPurpose =
   | { kind: "self-analysis"; sectionId: SectionId };
@@ -30,7 +32,6 @@ function buildSystemPrompt(purpose: ChatPurpose): string {
 - 不明・未回答の項目は、推測で埋めずに「不明（ユーザー未記載）」と明記してください。
 - 断定口調で作り話をしないでください。`;
 
-  // self-analysis: シートに貼れる「1段落（100〜500文字）」へ統一
   const sectionLabel =
     purpose.sectionId === "strength"
       ? "得意なこと（強み）"
@@ -84,42 +85,43 @@ export async function POST(req: Request) {
     }>;
 
     // ユーザーが会話で書き出した内容のみを参照させる（assistant の発言は除外）
-    const filtered = rawMessages.filter((m) => {
-      const t = getMessageText(m).trim();
-      if (!t || START_MARKERS.has(t)) return false;
-      return m.role === "user";
-    });
-
-    const model = openai("gpt-4o-mini");
-    const modelMessages = await convertToModelMessages(filtered as UIMessage[]);
+    const input = rawMessages
+      .filter((m) => {
+        const t = getMessageText(m).trim();
+        if (!t || START_MARKERS.has(t)) return false;
+        return m.role === "user";
+      })
+      .map((m) => ({
+        role: "user" as const,
+        content: getMessageText(m),
+      }));
 
     const normalizeSingleParagraph = (raw: string) =>
       raw.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
 
-    const generateOnce = async (system: string) => {
-      const { text } = await generateText({
-        model,
-        system,
-        messages: modelMessages,
+    const system = buildSystemPrompt(purpose);
+
+    const generateOnce = async (instructions: string) => {
+      const res = await client.responses.create({
+        model: "gpt-4o-mini",
+        instructions,
+        input,
       });
-      return text?.trim() ?? "";
+      return (res.output_text ?? "").trim();
     };
 
-    const system = buildSystemPrompt(purpose);
-    let proposal = await generateOnce(system);
-
-    // 生成時点で 100〜500 へ寄せる（ただし条件外でもそのまま返す）
-    proposal = normalizeSingleParagraph(proposal);
+    let proposal = normalizeSingleParagraph(await generateOnce(system));
     const len = proposal.length;
+
     if (len < 100 || len > 500) {
       const retrySystem = `${system}
 
 【追加ルール】
 - 直前の出力は文字数条件を満たしていません（現在 ${len} 文字）。必ず100〜500文字に収めて、同じ内容の範囲で言い換えて出力してください。
 - 改行なし・箇条書きなしは維持。文章のみを出力。`;
-      proposal = await generateOnce(retrySystem);
-      proposal = normalizeSingleParagraph(proposal);
+      proposal = normalizeSingleParagraph(await generateOnce(retrySystem));
     }
+
     return Response.json({ proposal });
   } catch (err) {
     console.error("[chat/complete] API error:", err);
@@ -129,4 +131,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

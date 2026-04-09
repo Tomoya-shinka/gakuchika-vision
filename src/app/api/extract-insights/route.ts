@@ -1,27 +1,12 @@
-import { openai } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import OpenAI from "openai";
 
 export const maxDuration = 30;
 
-export async function POST(req: Request) {
-  try {
-    const { content } = (await req.json()) as { content: string };
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    if (!content?.trim()) {
-      return Response.json({ error: "No content provided" }, { status: 400 });
-    }
-
-    if (!process.env.OPENAI_API_KEY) {
-      return Response.json({ error: "API key not configured" }, { status: 503 });
-    }
-
-    // 500文字ごとに最大1件、上限3件
-    const len = content.trim().length;
-    const maxCount = Math.max(1, Math.min(3, Math.floor(len / 500)));
-
-    const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
-      system: `ジャーナルから気づき・価値観・経験を抽出し、Snapとして出力してください。
+// Playgroundに保存したプロンプトがない場合のフォールバック用インラインシステムプロンプト
+function buildInlineSystem(maxCount: number): string {
+  return `ジャーナルから気づき・価値観・経験を抽出し、Snapとして出力してください。
 
 【抽出ルール】
 1. 文章を約500文字ずつのブロックに分けて読む
@@ -37,10 +22,48 @@ export async function POST(req: Request) {
 - 自然な日本語、箇条書き・記号なし
 
 必ず以下のJSON配列形式のみで出力（前置き・説明・コードブロック不要）:
-["Snap1", "Snap2"]`,
-      prompt: `以下のジャーナルを分析してSnapを抽出してください:\n\n${content}`,
-      maxOutputTokens: 600,
-    });
+["Snap1", "Snap2"]`;
+}
+
+export async function POST(req: Request) {
+  try {
+    const { content } = (await req.json()) as { content: string };
+
+    if (!content?.trim()) {
+      return Response.json({ error: "No content provided" }, { status: 400 });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return Response.json({ error: "API key not configured" }, { status: 503 });
+    }
+
+    const len = content.trim().length;
+    const maxCount = Math.max(1, Math.min(3, Math.floor(len / 500)));
+
+    const promptId = process.env.OPENAI_PROMPT_EXTRACT_INSIGHTS;
+
+    const response = await client.responses.create(
+      promptId
+        ? {
+            model: "gpt-4o-mini",
+            prompt: {
+              id: promptId,
+              variables: {
+                content,
+                max_count: String(maxCount),
+              },
+            },
+            max_output_tokens: 600,
+          }
+        : {
+            model: "gpt-4o-mini",
+            instructions: buildInlineSystem(maxCount),
+            input: `以下のジャーナルを分析してSnapを抽出してください:\n\n${content}`,
+            max_output_tokens: 600,
+          }
+    );
+
+    const text = response.output_text ?? "";
 
     // JSONパース
     try {
