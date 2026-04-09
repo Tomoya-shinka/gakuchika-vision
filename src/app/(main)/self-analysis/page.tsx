@@ -264,6 +264,15 @@ export default function SelfAnalysisPage() {
     load();
   }, [load]);
 
+  // タブ再フォーカス時に再読み込み（Snapの背景保存後に反映させるため）
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [load]);
+
   useEffect(() => {
     // まずローカルを即時表示し、Firestore で上書き
     const local = loadFolders();

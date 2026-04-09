@@ -13,20 +13,21 @@ export async function addSnapToSelfAnalysis(
   try {
     const db = getDb();
 
-    // デフォルトセクション + ユーザー作成フォルダを結合
+    // Firestoreにフォルダがあればそれのみ使用（ユーザーの実際のシート構成に合わせる）
+    // フォルダがない場合のみデフォルトセクションにフォールバック
     const firestoreFolders = await getFoldersFromFirestore(db, userId);
-    const allFolders = [
-      ...SELF_ANALYSIS_SECTIONS.map((s) => ({
-        id: s.id,
-        name: s.title,
-        description: s.subtitle,
-      })),
-      ...firestoreFolders.map((f) => ({
-        id: f.id,
-        name: f.name,
-        description: f.description,
-      })),
-    ];
+    const allFolders = firestoreFolders.length > 0
+      ? firestoreFolders.map((f) => ({
+          id: f.id,
+          name: f.name,
+          description: f.description,
+        }))
+      : SELF_ANALYSIS_SECTIONS.map((s) => ({
+          id: s.id,
+          name: s.title,
+          description: s.subtitle,
+        }));
+    console.log("[addSnapToSelfAnalysis] folders for AI:", allFolders.map(f => `${f.id}(${f.name})`));
 
     if (allFolders.length === 0) return;
 
