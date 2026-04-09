@@ -36,13 +36,19 @@ export async function addSnapToSelfAnalysis(
       body: JSON.stringify({ snapContent: snapText, folders: allFolders }),
     });
 
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.error("[addSnapToSelfAnalysis] snap-to-folder API error:", res.status);
+      return;
+    }
     const { folderId } = (await res.json()) as { folderId: string | null };
+    console.log("[addSnapToSelfAnalysis] folderId:", folderId);
 
     if (folderId) {
       await saveSelfAnalysisToFirestore(db, userId, folderId, snapText);
+      console.log("[addSnapToSelfAnalysis] saved to folder:", folderId);
     }
-  } catch {
-    // 自己分析への追加はノンクリティカルなのでサイレント失敗
+  } catch (e) {
+    // 自己分析への追加はノンクリティカルだがログは残す
+    console.error("[addSnapToSelfAnalysis] error:", e);
   }
 }

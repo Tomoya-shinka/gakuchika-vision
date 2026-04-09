@@ -58,7 +58,12 @@ export async function POST(req: Request) {
     );
 
     const raw = (response.output_text ?? "").trim().replace(/^["']|["']$/g, "");
-    const folderId = folders.some((f) => f.id === raw) ? raw : null;
+
+    // 完全一致を優先し、見つからなければ部分一致でフォールバック
+    const folderId =
+      folders.find((f) => f.id === raw)?.id ??
+      folders.find((f) => raw.includes(f.id))?.id ??
+      null;
 
     return Response.json({ folderId });
   } catch (err) {
