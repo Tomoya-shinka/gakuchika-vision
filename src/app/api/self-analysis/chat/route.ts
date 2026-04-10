@@ -108,9 +108,18 @@ function buildGenericGreeting(folderName: string): string {
   return `こんにちは！「${folderName}」に関連するエピソードや思いを一緒に言語化していきましょう。どんな小さなことでも大丈夫です。何か思い当たることはありますか？`;
 }
 
+const SECTION_TOPICS: Record<string, string> = {
+  "small-wins": "小さな成功体験",
+  "fun": "楽しかったこと",
+  "strength": "得意なこと・強み",
+  "dream": "夢・人生の目標",
+};
+
 /** ネイティブ OpenAI Responses API ストリームを AI SDK UI ストリーム形式で返す */
 function doStream(
-  instructions: string,
+  promptConfig:
+    | { instructions: string }
+    | { promptId: string; variables: Record<string, string> },
   input: Array<{ role: "user" | "assistant"; content: string }>
 ): Response {
   const msgId = generateId();
@@ -119,11 +128,17 @@ function doStream(
     execute: async (writer) => {
       writer.write({ type: "start", messageId: msgId });
 
-      const stream = client.responses.stream({
-        model: "gpt-4o-mini",
-        instructions,
-        input,
-      });
+      const stream = "promptId" in promptConfig
+        ? client.responses.stream({
+            model: "gpt-4o-mini",
+            prompt: { id: promptConfig.promptId, variables: promptConfig.variables },
+            input,
+          })
+        : client.responses.stream({
+            model: "gpt-4o-mini",
+            instructions: promptConfig.instructions,
+            input,
+          });
 
       for await (const event of stream) {
         if (event.type === "response.output_text.delta") {
@@ -158,8 +173,9 @@ export async function POST(req: Request) {
 
     const section = (sectionId ?? "small-wins") as SectionId;
     const isDefaultSection = DEFAULT_SECTION_IDS.includes(section);
+    const coachPromptId = process.env.OPENAI_PROMPT_SELF_ANALYSIS_COACH;
 
-    const systemPrompt = isDefaultSection
+    const inlineSystemPrompt = isDefaultSection
       ? (SECTION_COACH_PROMPTS[section] ?? SECTION_COACH_PROMPTS["small-wins"])
       : buildGenericCoachPrompt(folderName ?? section);
 
@@ -171,7 +187,7 @@ export async function POST(req: Request) {
     const lastUser = rawMessages.filter((m) => m.role === "user").pop();
     const lastText = lastUser ? getMessageText(lastUser) : "";
 
-    // 初回挨拶
+    // 初回挨拶（ストアドプロンプト非対応・常にインライン）
     if (
       lastText.trim() === START_MARKER ||
       (rawMessages.length === 1 && lastText.trim() === "")
@@ -180,7 +196,7 @@ export async function POST(req: Request) {
         ? (INITIAL_COACH_GREETINGS[section] ?? INITIAL_COACH_GREETINGS["small-wins"])
         : buildGenericGreeting(folderName ?? section);
       return doStream(
-        `あなたはコーチです。以下の挨拶をそのまま1行で出力してください。追加の説明は不要です。\n\n${greeting}`,
+        { instructions: `あなたはコーチです。以下の挨拶をそのまま1行で出力してください。追加の説明は不要です。\n\n${greeting}` },
         [{ role: "user", content: "開始" }]
       );
     }
@@ -197,7 +213,18 @@ export async function POST(req: Request) {
         content: getMessageText(m),
       }));
 
-    return doStream(systemPrompt, filteredMessages);
+    // デフォルトセクション かつ ストアドプロンプトIDがある場合は Playground のプロンプトを使用
+    const promptConfig =
+      isDefaultSection && coachPromptId
+        ? {
+            promptId: coachPromptId,
+            variables: {
+              section_topic: SECTION_TOPICS[section] ?? section,
+            },
+          }
+        : { instructions: inlineSystemPrompt };
+
+    return doStream(promptConfig, filteredMessages);
   } catch (err) {
     console.error("[chat] API error:", err);
     return Response.json(
