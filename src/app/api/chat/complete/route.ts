@@ -14,6 +14,21 @@ type ChatPurpose = {
 
 const START_MARKERS = new Set(["__GOAL_COACH_START__", "__COACH_START__"]);
 
+const DEFAULT_SECTION_LABELS: Record<string, string> = {
+  "small-wins": "成功体験",
+  "fun": "楽しかったこと",
+  "strength": "得意なこと（強み）",
+  "dream": "長期ビジョン",
+};
+
+function getSectionLabel(purpose: ChatPurpose): string {
+  return (
+    purpose.folderName ||
+    DEFAULT_SECTION_LABELS[purpose.sectionId] ||
+    purpose.sectionId
+  );
+}
+
 function getMessageText(m: {
   role: string;
   content?: string;
@@ -35,16 +50,7 @@ function buildSystemPrompt(purpose: ChatPurpose): string {
 - 不明・未回答の項目は、推測で埋めずに「不明（ユーザー未記載）」と明記してください。
 - 断定口調で作り話をしないでください。`;
 
-  const DEFAULT_SECTION_LABELS: Record<string, string> = {
-    "small-wins": "成功体験",
-    "fun": "楽しかったこと",
-    "strength": "得意なこと（強み）",
-    "dream": "長期ビジョン",
-  };
-  const sectionLabel =
-    purpose.folderName ||
-    DEFAULT_SECTION_LABELS[purpose.sectionId] ||
-    purpose.sectionId;
+  const sectionLabel = getSectionLabel(purpose);
 
   return `あなたは自己分析のコーチです。ユーザー発言を要約し、「${sectionLabel}」として自己分析シートに貼れる文章を作成してください。
 ${grounding}
@@ -105,13 +111,25 @@ export async function POST(req: Request) {
       raw.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
 
     const system = buildSystemPrompt(purpose);
+    const promptId = process.env.OPENAI_PROMPT_CHAT_COMPLETE;
 
-    const generateOnce = async (instructions: string) => {
-      const res = await client.responses.create({
-        model: "gpt-4o-mini",
-        instructions,
-        input,
-      });
+    const generateOnce = async (instructions: string, isRetry = false) => {
+      const res = await client.responses.create(
+        promptId && !isRetry
+          ? {
+              model: "gpt-4o-mini",
+              prompt: {
+                id: promptId,
+                variables: { section_label: getSectionLabel(purpose) },
+              },
+              input,
+            }
+          : {
+              model: "gpt-4o-mini",
+              instructions,
+              input,
+            }
+      );
       return (res.output_text ?? "").trim();
     };
 
@@ -124,7 +142,7 @@ export async function POST(req: Request) {
 【追加ルール】
 - 直前の出力は文字数条件を満たしていません（現在 ${len} 文字）。必ず100〜500文字に収めて、同じ内容の範囲で言い換えて出力してください。
 - 改行なし・箇条書きなしは維持。文章のみを出力。`;
-      proposal = normalizeSingleParagraph(await generateOnce(retrySystem));
+      proposal = normalizeSingleParagraph(await generateOnce(retrySystem, true));
     }
 
     return Response.json({ proposal });
