@@ -10,7 +10,6 @@ export async function addSnapToSelfAnalysis(
   userId: string,
   snapText: string
 ): Promise<void> {
-  console.log("[addSnapToSelfAnalysis] START, userId:", userId, "text:", snapText.slice(0, 30));
   try {
     const db = getDb();
 

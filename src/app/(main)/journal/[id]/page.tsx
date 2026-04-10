@@ -212,7 +212,6 @@ export default function JournalDetailPage() {
 
   const handleSnapSave = async () => {
     const selected = snapItems.filter((s) => s.checked && s.text.trim());
-    console.log("[handleSnapSave] called, user:", user?.uid, "selected:", selected.length);
     if (!user?.uid || selected.length === 0) return;
     setIsSavingSnap(true);
     try {
