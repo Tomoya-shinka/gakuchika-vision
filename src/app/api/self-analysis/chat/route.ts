@@ -125,7 +125,7 @@ function doStream(
   const msgId = generateId();
 
   const uiStream = createUIMessageStream({
-    execute: async (writer) => {
+    execute: async ({ writer }) => {
       writer.write({ type: "start", messageId: msgId });
 
       const stream = "promptId" in promptConfig
