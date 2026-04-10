@@ -1,5 +1,10 @@
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
-import { openai } from "@ai-sdk/openai";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateId,
+  type UIMessage,
+} from "ai";
+import OpenAI from "openai";
 import {
   SECTION_COACH_PROMPTS,
   INITIAL_COACH_GREETINGS,
@@ -9,9 +14,15 @@ import type { SectionId } from "@/lib/self-analysis";
 
 export const maxDuration = 60;
 
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 const START_MARKER = "__COACH_START__";
 
-function getMessageText(m: { role: string; content?: string; parts?: Array<{ type: string; text?: string }> }): string {
+function getMessageText(m: {
+  role: string;
+  content?: string;
+  parts?: Array<{ type: string; text?: string }>;
+}): string {
   if (typeof m.content === "string") return m.content;
   return (
     m.parts
@@ -97,6 +108,37 @@ function buildGenericGreeting(folderName: string): string {
   return `こんにちは！「${folderName}」に関連するエピソードや思いを一緒に言語化していきましょう。どんな小さなことでも大丈夫です。何か思い当たることはありますか？`;
 }
 
+/** ネイティブ OpenAI Responses API ストリームを AI SDK UI ストリーム形式で返す */
+function doStream(
+  instructions: string,
+  input: Array<{ role: "user" | "assistant"; content: string }>
+): Response {
+  const msgId = generateId();
+
+  const uiStream = createUIMessageStream({
+    execute: async (writer) => {
+      writer.write({ type: "start", messageId: msgId });
+
+      const stream = client.responses.stream({
+        model: "gpt-4o-mini",
+        instructions,
+        input,
+      });
+
+      for await (const event of stream) {
+        if (event.type === "response.output_text.delta") {
+          writer.write({ type: "text-delta", id: msgId, delta: event.delta });
+        }
+      }
+
+      writer.write({ type: "finish", finishReason: "stop" });
+    },
+    onError: (e) => (e instanceof Error ? e.message : String(e)),
+  });
+
+  return createUIMessageStreamResponse({ stream: uiStream });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -117,7 +159,6 @@ export async function POST(req: Request) {
     const section = (sectionId ?? "small-wins") as SectionId;
     const isDefaultSection = DEFAULT_SECTION_IDS.includes(section);
 
-    // カスタムフォルダの場合は汎用プロンプト/挨拶を使用
     const systemPrompt = isDefaultSection
       ? (SECTION_COACH_PROMPTS[section] ?? SECTION_COACH_PROMPTS["small-wins"])
       : buildGenericCoachPrompt(folderName ?? section);
@@ -130,8 +171,7 @@ export async function POST(req: Request) {
     const lastUser = rawMessages.filter((m) => m.role === "user").pop();
     const lastText = lastUser ? getMessageText(lastUser) : "";
 
-    const model = openai.responses("gpt-4o-mini");
-
+    // 初回挨拶
     if (
       lastText.trim() === START_MARKER ||
       (rawMessages.length === 1 && lastText.trim() === "")
@@ -139,27 +179,25 @@ export async function POST(req: Request) {
       const greeting = isDefaultSection
         ? (INITIAL_COACH_GREETINGS[section] ?? INITIAL_COACH_GREETINGS["small-wins"])
         : buildGenericGreeting(folderName ?? section);
-      const result = streamText({
-        model,
-        system: `あなたはコーチです。以下の挨拶をそのまま1行で出力してください。追加の説明は不要です。\n\n${greeting}`,
-        messages: [{ role: "user" as const, content: "開始" }],
-      });
-      return result.toUIMessageStreamResponse();
+      return doStream(
+        `あなたはコーチです。以下の挨拶をそのまま1行で出力してください。追加の説明は不要です。\n\n${greeting}`,
+        [{ role: "user", content: "開始" }]
+      );
     }
 
-    const filteredMessages = rawMessages.filter(
-      (m) => getMessageText(m).trim() !== START_MARKER
-    );
+    const filteredMessages = rawMessages
+      .filter((m) => getMessageText(m).trim() !== START_MARKER)
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          getMessageText(m).trim().length > 0
+      )
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: getMessageText(m),
+      }));
 
-    const result = streamText({
-      model,
-      system: systemPrompt,
-      messages: await convertToModelMessages(
-        filteredMessages as UIMessage[]
-      ),
-    });
-
-    return result.toUIMessageStreamResponse();
+    return doStream(systemPrompt, filteredMessages);
   } catch (err) {
     console.error("[chat] API error:", err);
     return Response.json(

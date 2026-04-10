@@ -213,7 +213,11 @@ export default function SelfAnalysisChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages,
-          purpose: { kind: "self-analysis", sectionId: validSection ?? "small-wins" },
+          purpose: {
+            kind: "self-analysis",
+            sectionId: validSection ?? "small-wins",
+            folderName: sectionTitle,
+          },
         }),
       });
       if (!res.ok) {

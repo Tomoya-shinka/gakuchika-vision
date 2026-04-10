@@ -7,8 +7,8 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 type FolderInfo = { id: string; name: string; description?: string };
 
 const INLINE_SYSTEM = `以下のフォルダ一覧から、Snapの内容に最も適切なフォルダを1つ選んでください。
-Snapの内容がどのフォルダにも明確に当てはまらない場合は "null" と答えてください。
-必ずフォルダのIDのみを出力してください（ダブルクォート不要・前置き・説明不要）。
+Snapの内容がどのフォルダにも全く当てはまらない場合のみ "0" と答えてください。
+必ずフォルダの番号のみを出力してください（数字1文字のみ・前置き・説明不要）。
 
 フォルダ一覧:
 {{folder_list}}`;
@@ -28,9 +28,10 @@ export async function POST(req: Request) {
       return Response.json({ folderId: null });
     }
 
+    // 番号付きリスト（IDではなく番号で選択させる）
     const folderList = folders
       .map((f, i) =>
-        `${i + 1}. ID: "${f.id}" | 名前: "${f.name}"${f.description ? ` | 説明: ${f.description}` : ""}`
+        `${i + 1}. 名前: "${f.name}"${f.description ? ` | 説明: ${f.description}` : ""}`
       )
       .join("\n");
 
@@ -47,24 +48,27 @@ export async function POST(req: Request) {
                 snap_content: snapContent.trim(),
               },
             },
-            max_output_tokens: 60,
+            max_output_tokens: 10,
           }
         : {
             model: "gpt-4o-mini",
             instructions: INLINE_SYSTEM.replace("{{folder_list}}", folderList),
             input: `Snap内容: 「${snapContent.trim()}」`,
-            max_output_tokens: 60,
+            max_output_tokens: 10,
           }
     );
 
-    const raw = (response.output_text ?? "").trim().replace(/^["']|["']$/g, "");
+    const raw = (response.output_text ?? "").trim();
+    console.log("[snap-to-folder] raw:", raw, "folders:", folders.map(f => f.id));
 
-    // 完全一致を優先し、見つからなければ部分一致でフォールバック
+    // 番号をインデックスに変換
+    const num = parseInt(raw, 10);
     const folderId =
-      folders.find((f) => f.id === raw)?.id ??
-      folders.find((f) => raw.includes(f.id))?.id ??
-      null;
+      num >= 1 && num <= folders.length
+        ? folders[num - 1].id
+        : null;
 
+    console.log("[snap-to-folder] folderId:", folderId);
     return Response.json({ folderId });
   } catch (err) {
     console.error("[snap-to-folder] error:", err);

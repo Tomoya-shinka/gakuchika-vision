@@ -6,8 +6,11 @@ export const maxDuration = 30;
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-type ChatPurpose =
-  | { kind: "self-analysis"; sectionId: SectionId };
+type ChatPurpose = {
+  kind: "self-analysis";
+  sectionId: SectionId;
+  folderName?: string;
+};
 
 const START_MARKERS = new Set(["__GOAL_COACH_START__", "__COACH_START__"]);
 
@@ -32,14 +35,16 @@ function buildSystemPrompt(purpose: ChatPurpose): string {
 - 不明・未回答の項目は、推測で埋めずに「不明（ユーザー未記載）」と明記してください。
 - 断定口調で作り話をしないでください。`;
 
+  const DEFAULT_SECTION_LABELS: Record<string, string> = {
+    "small-wins": "成功体験",
+    "fun": "楽しかったこと",
+    "strength": "得意なこと（強み）",
+    "dream": "長期ビジョン",
+  };
   const sectionLabel =
-    purpose.sectionId === "strength"
-      ? "得意なこと（強み）"
-      : purpose.sectionId === "small-wins"
-        ? "成功体験"
-        : purpose.sectionId === "dream"
-          ? "長期ビジョン"
-          : "楽しかったこと";
+    purpose.folderName ||
+    DEFAULT_SECTION_LABELS[purpose.sectionId] ||
+    purpose.sectionId;
 
   return `あなたは自己分析のコーチです。ユーザー発言を要約し、「${sectionLabel}」として自己分析シートに貼れる文章を作成してください。
 ${grounding}
