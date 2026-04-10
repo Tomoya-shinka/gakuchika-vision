@@ -1,10 +1,5 @@
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  generateId,
-  type UIMessage,
-} from "ai";
-import OpenAI from "openai";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { openai } from "@ai-sdk/openai";
 import {
   SECTION_COACH_PROMPTS,
   INITIAL_COACH_GREETINGS,
@@ -14,7 +9,6 @@ import type { SectionId } from "@/lib/self-analysis";
 
 export const maxDuration = 60;
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const START_MARKER = "__COACH_START__";
 
@@ -115,43 +109,13 @@ const SECTION_TOPICS: Record<string, string> = {
   "dream": "夢・人生の目標",
 };
 
-/** ネイティブ OpenAI Responses API ストリームを AI SDK UI ストリーム形式で返す */
-function doStream(
-  promptConfig:
-    | { instructions: string }
-    | { promptId: string; variables: Record<string, string> },
-  input: Array<{ role: "user" | "assistant"; content: string }>
-): Response {
-  const msgId = generateId();
-
-  const uiStream = createUIMessageStream({
-    execute: async ({ writer }) => {
-      writer.write({ type: "start", messageId: msgId });
-
-      const stream = "promptId" in promptConfig
-        ? client.responses.stream({
-            model: "gpt-4o-mini",
-            prompt: { id: promptConfig.promptId, variables: promptConfig.variables },
-            input,
-          })
-        : client.responses.stream({
-            model: "gpt-4o-mini",
-            instructions: promptConfig.instructions,
-            input,
-          });
-
-      for await (const event of stream) {
-        if (event.type === "response.output_text.delta") {
-          writer.write({ type: "text-delta", id: msgId, delta: event.delta });
-        }
-      }
-
-      writer.write({ type: "finish", finishReason: "stop" });
-    },
-    onError: (e) => (e instanceof Error ? e.message : String(e)),
+async function doStream(instructions: string, messages: UIMessage[]): Promise<Response> {
+  const result = streamText({
+    model: openai.responses("gpt-4o-mini"),
+    system: instructions,
+    messages: await convertToModelMessages(messages),
   });
-
-  return createUIMessageStreamResponse({ stream: uiStream });
+  return result.toUIMessageStreamResponse();
 }
 
 export async function POST(req: Request) {
@@ -173,8 +137,6 @@ export async function POST(req: Request) {
 
     const section = (sectionId ?? "small-wins") as SectionId;
     const isDefaultSection = DEFAULT_SECTION_IDS.includes(section);
-    const coachPromptId = process.env.OPENAI_PROMPT_SELF_ANALYSIS_COACH;
-
     const inlineSystemPrompt = isDefaultSection
       ? (SECTION_COACH_PROMPTS[section] ?? SECTION_COACH_PROMPTS["small-wins"])
       : buildGenericCoachPrompt(folderName ?? section);
@@ -195,36 +157,18 @@ export async function POST(req: Request) {
       const greeting = isDefaultSection
         ? (INITIAL_COACH_GREETINGS[section] ?? INITIAL_COACH_GREETINGS["small-wins"])
         : buildGenericGreeting(folderName ?? section);
-      return doStream(
-        { instructions: `あなたはコーチです。以下の挨拶をそのまま1行で出力してください。追加の説明は不要です。\n\n${greeting}` },
-        [{ role: "user", content: "開始" }]
-      );
+      return streamText({
+        model: openai.responses("gpt-4o-mini"),
+        system: `あなたはコーチです。以下の挨拶をそのまま1行で出力してください。追加の説明は不要です。\n\n${greeting}`,
+        messages: [{ role: "user" as const, content: "開始" }],
+      }).toUIMessageStreamResponse();
     }
 
-    const filteredMessages = rawMessages
-      .filter((m) => getMessageText(m).trim() !== START_MARKER)
-      .filter(
-        (m) =>
-          (m.role === "user" || m.role === "assistant") &&
-          getMessageText(m).trim().length > 0
-      )
-      .map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: getMessageText(m),
-      }));
+    const filteredMessages = messages.filter(
+      (m) => getMessageText(m as { role: string; content?: string; parts?: Array<{ type: string; text?: string }> }).trim() !== START_MARKER
+    );
 
-    // デフォルトセクション かつ ストアドプロンプトIDがある場合は Playground のプロンプトを使用
-    const promptConfig =
-      isDefaultSection && coachPromptId
-        ? {
-            promptId: coachPromptId,
-            variables: {
-              section_topic: SECTION_TOPICS[section] ?? section,
-            },
-          }
-        : { instructions: inlineSystemPrompt };
-
-    return doStream(promptConfig, filteredMessages);
+    return doStream(inlineSystemPrompt, filteredMessages);
   } catch (err) {
     console.error("[chat] API error:", err);
     return Response.json(

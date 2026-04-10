@@ -1,18 +1,11 @@
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  generateId,
-  type UIMessage,
-} from "ai";
-import OpenAI from "openai";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { openai } from "@ai-sdk/openai";
 import {
   type ChatMode,
   COACHING_SYSTEM_PROMPT,
 } from "@/lib/ai-prompts";
 
 export const maxDuration = 60;
-
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 interface JournalContext {
   title?: string;
@@ -70,25 +63,6 @@ function getTextFromMessage(m: {
   );
 }
 
-/** UIMessage[] → Responses API input 形式に変換 */
-function convertToInput(messages: UIMessage[]) {
-  return (
-    messages as Array<{
-      role: string;
-      content?: string;
-      parts?: Array<{ type: string; text?: string }>;
-    }>
-  )
-    .filter(
-      (m) =>
-        (m.role === "user" || m.role === "assistant") &&
-        getTextFromMessage(m).trim().length > 0
-    )
-    .map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: getTextFromMessage(m),
-    }));
-}
 
 function countTurns(raw: UIMessage[]) {
   const userTurns = raw.filter((m) => m.role === "user").length;
@@ -295,38 +269,19 @@ function buildSystemPrompt(
   return prompt;
 }
 
-/** ネイティブ OpenAI Responses API ストリームを AI SDK UI ストリーム形式で返す */
-function doStream(
+async function doStream(
   instructions: string,
-  input: Array<{ role: "user" | "assistant"; content: string }>,
+  messages: UIMessage[],
   model: "gpt-4o-mini" | "gpt-4o",
   maxOutputTokens: number
-): Response {
-  const msgId = generateId();
-
-  const uiStream = createUIMessageStream({
-    execute: async ({ writer }) => {
-      writer.write({ type: "start", messageId: msgId });
-
-      const stream = client.responses.stream({
-        model,
-        instructions,
-        input,
-        max_output_tokens: maxOutputTokens,
-      });
-
-      for await (const event of stream) {
-        if (event.type === "response.output_text.delta") {
-          writer.write({ type: "text-delta", id: msgId, delta: event.delta });
-        }
-      }
-
-      writer.write({ type: "finish", finishReason: "stop" });
-    },
-    onError: (e) => (e instanceof Error ? e.message : String(e)),
+): Promise<Response> {
+  const result = streamText({
+    model: openai.responses(model),
+    system: instructions,
+    messages: await convertToModelMessages(messages),
+    maxOutputTokens,
   });
-
-  return createUIMessageStreamResponse({ stream: uiStream });
+  return result.toUIMessageStreamResponse();
 }
 
 export async function POST(req: Request) {
@@ -356,12 +311,12 @@ export async function POST(req: Request) {
     if (summaryPeriod && periodJournals.length === 0) {
       const label = getPeriodLabel(summaryPeriod);
       const noDataMsg = `${label}のSnapがありません。ジャーナルを記録してSnapを保存してから振り返りをお試しください！`;
-      return doStream(
-        "ユーザーへ以下のメッセージをそのまま1行で出力してください。追加の説明は不要です。",
-        [{ role: "user", content: noDataMsg }],
-        "gpt-4o-mini",
-        100
-      );
+      return streamText({
+        model: openai.responses("gpt-4o-mini"),
+        system: "ユーザーへ以下のメッセージをそのまま1行で出力してください。追加の説明は不要です。",
+        messages: [{ role: "user" as const, content: noDataMsg }],
+        maxOutputTokens: 100,
+      }).toUIMessageStreamResponse();
     }
 
     let systemPrompt = buildSystemPrompt(context ?? {}, summaryPeriod, periodJournals, mode);
@@ -406,11 +361,10 @@ export async function POST(req: Request) {
       systemPrompt = `${systemPrompt}\n\n${stageInstruction}`;
     }
 
-    const input = convertToInput(messages);
     const model = mode === "coaching" ? "gpt-4o" : "gpt-4o-mini";
     const maxOutputTokens = mode === "coaching" ? 120 : 350;
 
-    return doStream(systemPrompt, input, model, maxOutputTokens);
+    return doStream(systemPrompt, messages, model, maxOutputTokens);
   } catch (err) {
     console.error("[ai-chat] error:", err);
     return Response.json(
