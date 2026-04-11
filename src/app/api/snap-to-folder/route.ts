@@ -48,13 +48,13 @@ export async function POST(req: Request) {
               variables: { folder_list: folderList, snap_content: snapContent.trim() },
             },
             input: userInput,
-            max_output_tokens: 10,
+            max_output_tokens: 16,
           }
         : {
             model: "gpt-4o-mini",
             instructions: INLINE_SYSTEM.replace("{{folder_list}}", folderList),
             input: userInput,
-            max_output_tokens: 10,
+            max_output_tokens: 16,
           }
     );
 
