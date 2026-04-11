@@ -13,10 +13,9 @@ import {
   INSIGHT_SIGNAL,
 } from "@/lib/self-analysis-sections";
 import { type SectionId } from "@/lib/self-analysis";
-import {
-  categoryToSectionId,
-  saveSelfAnalysisToFirestore,
-} from "@/lib/self-analysis-firestore";
+import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { categoryToSectionId } from "@/lib/self-analysis-firestore";
+import { addSnapToSelfAnalysis } from "@/lib/snap-to-self-analysis";
 import { useAuth } from "@/contexts/auth-context";
 import { getDb } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
@@ -109,10 +108,10 @@ export default function SelfAnalysisChatPage() {
         api: "/api/self-analysis/chat",
         body: {
           sectionId: validSection ?? "small-wins",
-          folderName: folderNameParam ?? undefined,
+          folderName: sectionTitle,
         },
       }),
-    [validSection, folderNameParam]
+    [validSection, sectionTitle]
   );
   const {
     messages,
@@ -176,6 +175,22 @@ export default function SelfAnalysisChatPage() {
     }
   }, [error]);
 
+  /** 洞察をSnap（journal）として保存し、自己分析シートに自動分類する */
+  const handleSaveAsSnap = async (content: string) => {
+    if (!content || !user?.uid) return;
+    const db = getDb();
+    await addDoc(collection(db, "journals"), {
+      userId: user.uid,
+      content: content.trim(),
+      type: "snap",
+      likes: [],
+      createdAt: Timestamp.now(),
+    });
+    // バックグラウンドで自己分析シートに自動分類
+    void addSnapToSelfAnalysis(user.uid, content.trim());
+    router.push("/self-analysis");
+  };
+
   const handleAddToSheet = async () => {
     const content = proposedSummary?.trim();
     if (!content || !user?.uid) return;
@@ -183,20 +198,10 @@ export default function SelfAnalysisChatPage() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      const db = getDb();
-      await saveSelfAnalysisToFirestore(db, user.uid, validSection, content);
-      router.push("/self-analysis");
+      await handleSaveAsSnap(content);
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : "保存に失敗しました。もう一度お試しください。";
-      if (msg.includes("Missing or insufficient permissions")) {
-        setSaveError(
-          "権限エラー：Firestoreルールが未公開/未反映の可能性があります。Firebase Consoleでルールを公開してください。"
-        );
-        return;
-      }
       setSaveError(
-        msg
+        e instanceof Error ? e.message : "保存に失敗しました。もう一度お試しください。"
       );
     } finally {
       setIsSaving(false);
@@ -241,20 +246,10 @@ export default function SelfAnalysisChatPage() {
     setIsSavingFinal(true);
     setSaveError(null);
     try {
-      const db = getDb();
-      await saveSelfAnalysisToFirestore(db, user.uid, validSection ?? "small-wins", content);
-      router.push("/self-analysis");
+      await handleSaveAsSnap(content);
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : "保存に失敗しました。もう一度お試しください。";
-      if (msg.includes("Missing or insufficient permissions")) {
-        setSaveError(
-          "権限エラー：Firestoreルールが未公開/未反映の可能性があります。Firebase Consoleでルールを公開してください。"
-        );
-        return;
-      }
       setSaveError(
-        msg
+        e instanceof Error ? e.message : "保存に失敗しました。もう一度お試しください。"
       );
     } finally {
       setIsSavingFinal(false);
@@ -372,7 +367,7 @@ export default function SelfAnalysisChatPage() {
           {showProposalCard && (
             <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
               <p className="text-xs font-medium text-muted-foreground">
-                自己分析シートに登録するフレーズ
+                コーチングの洞察
               </p>
               <p className="text-sm font-medium text-foreground">
                 「{proposedSummary}」
@@ -385,8 +380,17 @@ export default function SelfAnalysisChatPage() {
                 onClick={handleAddToSheet}
                 disabled={isSaving}
               >
-                <PlusCircle className="size-4" />
-                シートに追加する
+                {isSaving ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="size-4" />
+                    Snapとして保存
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -417,7 +421,7 @@ export default function SelfAnalysisChatPage() {
                   ) : (
                     <>
                       <PlusCircle className="size-4" />
-                      自己分析シートへ保存
+                      Snapとして保存
                     </>
                   )}
                 </Button>

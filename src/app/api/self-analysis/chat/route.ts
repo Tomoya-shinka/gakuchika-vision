@@ -1,4 +1,5 @@
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import OpenAI from "openai";
+import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, streamText, type UIMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
 import {
   SECTION_COACH_PROMPTS,
@@ -6,6 +7,8 @@ import {
   INSIGHT_SIGNAL,
 } from "@/lib/self-analysis-sections";
 import type { SectionId } from "@/lib/self-analysis";
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const maxDuration = 60;
 
@@ -102,14 +105,46 @@ function buildGenericGreeting(folderName: string): string {
   return `こんにちは！「${folderName}」に関連するエピソードや思いを一緒に言語化していきましょう。どんな小さなことでも大丈夫です。何か思い当たることはありますか？`;
 }
 
-const SECTION_TOPICS: Record<string, string> = {
-  "small-wins": "小さな成功体験",
-  "fun": "楽しかったこと",
-  "strength": "得意なこと・強み",
-  "dream": "夢・人生の目標",
-};
+async function doStream(
+  instructions: string,
+  messages: UIMessage[],
+  storedPrompt?: { promptId: string; coachingTheme: string }
+): Promise<Response> {
+  if (storedPrompt) {
+    const inputMessages = (messages as Array<{
+      role: string;
+      content?: string;
+      parts?: Array<{ type: string; text?: string }>;
+    }>)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: getMessageText(m),
+      }))
+      .filter((m) => m.content.trim() !== "");
 
-async function doStream(instructions: string, messages: UIMessage[]): Promise<Response> {
+    const messageId = crypto.randomUUID();
+    const uiStream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        const nativeStream = client.responses.stream({
+          model: "gpt-4o-mini",
+          prompt: {
+            id: storedPrompt.promptId,
+            variables: { coaching_theme: storedPrompt.coachingTheme },
+          },
+          input: inputMessages,
+        });
+        for await (const event of nativeStream) {
+          if (event.type === "response.output_text.delta") {
+            writer.write({ type: "text-delta", delta: event.delta, id: messageId });
+          }
+        }
+      },
+    });
+    return createUIMessageStreamResponse({ stream: uiStream });
+  }
+
+  // fallback: inline system prompt
   const result = streamText({
     model: openai.responses("gpt-4o-mini"),
     system: instructions,
@@ -168,7 +203,15 @@ export async function POST(req: Request) {
       (m) => getMessageText(m as { role: string; content?: string; parts?: Array<{ type: string; text?: string }> }).trim() !== START_MARKER
     );
 
-    return doStream(inlineSystemPrompt, filteredMessages);
+    const promptId = process.env.OPENAI_PROMPT_SELF_ANALYSIS_COACH;
+    // フロントが常に sectionTitle を folderName として送るため直接使う
+    const coachingTheme = folderName ?? section;
+
+    return doStream(
+      inlineSystemPrompt,
+      filteredMessages,
+      promptId ? { promptId, coachingTheme } : undefined
+    );
   } catch (err) {
     console.error("[chat] API error:", err);
     return Response.json(
