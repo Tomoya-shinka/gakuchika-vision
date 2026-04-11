@@ -1,6 +1,6 @@
 # Firebase データ構造ドキュメント
 
-> 最終更新: 2026-04-09
+> 最終更新: 2026-04-11
 
 ---
 
@@ -83,7 +83,7 @@ setDoc(doc(db, "users", uid), { ...data }, { merge: true })
 | `content` | string | ○ | 本文（ジャーナルは HTML リッチテキスト、Snap/つぶやきはプレーンテキスト） |
 | `title` | string | — | タイトル（ジャーナルのみ。未設定時は「タイトル未設定のジャーナル」として表示） |
 | `createdAt` | Timestamp | ○ | 作成日時 |
-| `isPublic` | boolean | ○ | 公開フラグ（`true` = フィードに表示） |
+| `isPublic` | boolean | — | 公開フラグ（`true` = フィードに表示）。ジャーナル投稿では必須。Snap・つぶやきは省略可（省略時は非公開扱い） |
 | `type` | `"snap"` \| `"tweet"` \| undefined | — | 投稿種別。未設定 = ジャーナル |
 | `likes` | string[] | — | いいねしたユーザー UID の配列 |
 | `audioUrl` | string | — | 音声ファイル URL |
@@ -95,7 +95,7 @@ setDoc(doc(db, "users", uid), { ...data }, { merge: true })
 | 値 | 意味 | 特徴 |
 |---|---|---|
 | `undefined`（未設定） | ジャーナル | タイトルあり、HTML リッチテキスト、MyPage「ジャーナル」タブに表示 |
-| `"snap"` | Snap | ジャーナルから AI 抽出した洞察メモ。チャット AI のコンテキストにも使用 |
+| `"snap"` | Snap | ジャーナルの AI 抽出、またはコーチングセッションで得た洞察メモ。AI チャットのコンテキストにも使用。`snap-to-folder` による自己分析シート自動分類のトリガーにもなる |
 | `"tweet"` | つぶやき | 短い自由投稿 |
 
 ### 主な操作
@@ -122,8 +122,14 @@ query(
 // 1件取得
 getDoc(doc(db, "journals", journalId))
 
-// 追加
-addDoc(collection(db, "journals"), { userId, content, createdAt: serverTimestamp(), isPublic, ... })
+// 追加（ジャーナル）
+addDoc(collection(db, "journals"), { userId, content, title, isPublic, createdAt: serverTimestamp(), ... })
+
+// 追加（Snap: ジャーナルページ）
+addDoc(collection(db, "journals"), { userId, content, type: "snap", isPublic: false, likes: [], createdAt: Timestamp.now() })
+
+// 追加（Snap: AIコーチページ — isPublic 未設定のため非公開扱い）
+addDoc(collection(db, "journals"), { userId, content, type: "snap", likes: [], createdAt: Timestamp.now() })
 
 // 更新（公開設定変更・いいねなど）
 updateDoc(doc(db, "journals", journalId), { isPublic: true })
@@ -172,6 +178,10 @@ addDoc(collection(db, "journals", journalId, "comments"), { userId, userName, te
 **ドキュメント ID**: 自動生成
 
 **説明**: ユーザーの自己分析シートに記録された各アイテム。
+
+アイテムの追加経路は2通りある：
+1. **AIコーチ・直接追加**: コーチングセッションの洞察を Snap として `journals` に保存 → `addSnapToSelfAnalysis()` が `/api/snap-to-folder` を呼び出し、AI がフォルダを判定して自動追加
+2. **直接追加**: `saveSelfAnalysisToFirestore()` を介してシートに直接追加
 
 ### フィールド
 
@@ -300,17 +310,20 @@ Firestore と並行してローカルキャッシュ・一部データの localS
 | `/api/feed/journals` | GET | `journals`（isPublic=true）+ `users`（著者情報） |
 | `/api/feed/journals/[id]` | GET | `journals/{id}` + `journals/{id}/comments` + `users` |
 | `/api/extract-insights` | POST | なし（フロント側で Snap を `journals` に保存） |
-| `/api/snap-to-folder` | POST | なし（フロント側で `self_analysis` に保存） |
+| `/api/snap-to-folder` | POST | `users/{uid}/self_analysis_folders` を読み込み、フォルダ判定結果を返す（`self_analysis` への保存はフロント側） |
+| `/api/self-analysis/chat` | POST | なし（AIコーチのストリーミング応答。保存はフロント側） |
+| `/api/chat/complete` | POST | なし（コーチ会話のまとめ文章を生成して返す） |
+| `/api/ai-chat` | POST | なし（コンテキストはフロントから受け取り） |
 | `/api/upload-image` | POST | なし（Firebase Storage のみ） |
 | `/api/upload-audio` | POST | なし（Firebase Storage のみ） |
 | `/api/upload-avatar` | POST | なし（Firebase Storage のみ） |
-| `/api/ai-chat` | POST | なし（コンテキストはフロントから受け取り） |
+| `/api/transcribe` | POST | なし（音声文字起こし。結果はフロント側で利用） |
 
 ---
 
-## チャット AI のコンテキスト構成
+## AI 機能とデータの関係
 
-チャット AI（`/api/ai-chat`）に渡されるコンテキストは以下の通りです。
+### チャット AI のコンテキスト構成（`/api/ai-chat`）
 
 | データ | 取得元 | 上限 |
 |---|---|---|
@@ -319,6 +332,27 @@ Firestore と並行してローカルキャッシュ・一部データの localS
 | 目標データ | localStorage | 全件 |
 
 > ジャーナル全文ではなく Snap（要点抽出済み）のみを渡すことでトークンを最小化しています。
+
+### AIコーチ → Snap → 自己分析シート 自動分類フロー
+
+```
+[/self-analysis/chat]（AIコーチ）
+    ↓ 洞察検知（[INSIGHT_FOUND] シグナル）
+    ↓ ユーザーが「Snapとして保存」をクリック
+journals/{id}（type: "snap"）に保存
+    ↓ バックグラウンドで addSnapToSelfAnalysis() を実行
+    ↓ users/{uid}/self_analysis_folders を取得（カスタム or デフォルト4セクション）
+    ↓ /api/snap-to-folder で AI がフォルダを判定
+    ↓
+users/{uid}/self_analysis/{itemId} に自動追加
+```
+
+### Snap 自動分類の判定ロジック（`/api/snap-to-folder`）
+
+1. Firestore からユーザーのカスタムフォルダ一覧を取得
+2. カスタムフォルダがない場合はデフォルト4セクション（`SELF_ANALYSIS_SECTIONS`）にフォールバック
+3. OpenAI（Responses API）がフォルダ番号を返す
+4. 対応する `folderId`（または `sectionId`）に `saveSelfAnalysisToFirestore()` で保存
 
 ---
 
