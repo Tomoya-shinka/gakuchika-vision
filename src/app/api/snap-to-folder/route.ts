@@ -37,38 +37,39 @@ export async function POST(req: Request) {
 
     const promptId = process.env.OPENAI_PROMPT_SNAP_TO_FOLDER;
 
+    const userInput = `Snap内容: 「${snapContent.trim()}」`;
+
     const response = await client.responses.create(
       promptId
         ? {
             model: "gpt-4o-mini",
             prompt: {
               id: promptId,
-              variables: {
-                folder_list: folderList,
-                snap_content: snapContent.trim(),
-              },
+              variables: { folder_list: folderList, snap_content: snapContent.trim() },
             },
+            input: userInput,
             max_output_tokens: 10,
           }
         : {
             model: "gpt-4o-mini",
             instructions: INLINE_SYSTEM.replace("{{folder_list}}", folderList),
-            input: `Snap内容: 「${snapContent.trim()}」`,
+            input: userInput,
             max_output_tokens: 10,
           }
     );
 
     const raw = (response.output_text ?? "").trim();
-    console.log("[snap-to-folder] raw:", raw, "folders:", folders.map(f => f.id));
+    console.log("[snap-to-folder] raw output:", JSON.stringify(raw));
 
-    // 番号をインデックスに変換
-    const num = parseInt(raw, 10);
+    // 先頭の数字を抽出（"1." "1\n" " 1 " なども対応）
+    const match = raw.match(/\d+/);
+    const num = match ? parseInt(match[0], 10) : 0;
     const folderId =
       num >= 1 && num <= folders.length
         ? folders[num - 1].id
         : null;
 
-    console.log("[snap-to-folder] folderId:", folderId);
+    console.log("[snap-to-folder] num:", num, "→ folderId:", folderId);
     return Response.json({ folderId });
   } catch (err) {
     console.error("[snap-to-folder] error:", err);
