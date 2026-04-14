@@ -333,9 +333,6 @@ export default function JournalPage() {
   // 録音時間が上限に達したら自動停止 → onstop で文字起こしに自動移行
   useEffect(() => {
     if (!isRecording) return;
-    if (recordingSeconds === MAX_RECORD_SECONDS - 60) {
-      toast.warning("録音残り1分です。8分で自動的に文字起こしを開始します。", { duration: 5000 });
-    }
     if (recordingSeconds >= MAX_RECORD_SECONDS) {
       // stop() 呼び出しで recorder.onstop が発火し、文字起こし処理へ自動移行する
       mediaRecorderRef.current?.stop();
@@ -1267,6 +1264,9 @@ export default function JournalPage() {
                     ? `録音中 ${formatRecordingTime(recordingSeconds)} · タップして停止`
                     : "タップして音声入力"}
                 </p>
+                {!isRecording && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">最大8分まで録音できます</p>
+                )}
               </div>}
 
               <div
