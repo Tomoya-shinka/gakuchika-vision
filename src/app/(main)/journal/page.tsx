@@ -330,16 +330,16 @@ export default function JournalPage() {
     return () => clearInterval(id);
   }, [isRecording]);
 
-  // 録音時間が上限に達したら自動停止
+  // 録音時間が上限に達したら自動停止 → onstop で文字起こしに自動移行
   useEffect(() => {
     if (!isRecording) return;
     if (recordingSeconds === MAX_RECORD_SECONDS - 60) {
-      toast.warning("録音残り1分です。自動停止します。", { duration: 5000 });
+      toast.warning("録音残り1分です。8分で自動的に文字起こしを開始します。", { duration: 5000 });
     }
     if (recordingSeconds >= MAX_RECORD_SECONDS) {
+      // stop() 呼び出しで recorder.onstop が発火し、文字起こし処理へ自動移行する
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
-      toast.info("録音時間の上限（8分）に達したため自動停止しました。");
     }
   }, [isRecording, recordingSeconds]);
 
