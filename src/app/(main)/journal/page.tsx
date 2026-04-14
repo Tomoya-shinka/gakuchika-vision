@@ -1527,14 +1527,19 @@ export default function JournalPage() {
             <div className="mt-5 space-y-3">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={(e) => {
                   e.preventDefault();
                   performSave("public");
                 }}
-                className="flex w-full items-start gap-4 rounded-xl border-2 border-slate-200/80 bg-slate-50/50 p-4 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 dark:border-slate-700/80 dark:bg-slate-900/30 dark:hover:border-sky-600/60 dark:hover:bg-sky-950/40"
+                className="flex w-full items-start gap-4 rounded-xl border-2 border-slate-200/80 bg-slate-50/50 p-4 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-700/80 dark:bg-slate-900/30 dark:hover:border-sky-600/60 dark:hover:bg-sky-950/40"
               >
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                  <Globe className="size-5 text-sky-600 dark:text-sky-400" aria-hidden />
+                  {isSaving ? (
+                    <Loader2 className="size-5 animate-spin text-sky-600 dark:text-sky-400" aria-hidden />
+                  ) : (
+                    <Globe className="size-5 text-sky-600 dark:text-sky-400" aria-hidden />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900 dark:text-slate-50">
@@ -1548,14 +1553,19 @@ export default function JournalPage() {
 
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={(e) => {
                   e.preventDefault();
                   performSave("private");
                 }}
-                className="flex w-full items-start gap-4 rounded-xl border-2 border-slate-200/80 bg-slate-50/50 p-4 text-left transition-colors hover:border-amber-300/80 hover:bg-amber-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 dark:border-slate-700/80 dark:bg-slate-900/30 dark:hover:border-amber-700/60 dark:hover:bg-amber-950/30"
+                className="flex w-full items-start gap-4 rounded-xl border-2 border-slate-200/80 bg-slate-50/50 p-4 text-left transition-colors hover:border-amber-300/80 hover:bg-amber-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-700/80 dark:bg-slate-900/30 dark:hover:border-amber-700/60 dark:hover:bg-amber-950/30"
               >
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
-                  <Lock className="size-5 text-amber-600 dark:text-amber-400" aria-hidden />
+                  {isSaving ? (
+                    <Loader2 className="size-5 animate-spin text-amber-600 dark:text-amber-400" aria-hidden />
+                  ) : (
+                    <Lock className="size-5 text-amber-600 dark:text-amber-400" aria-hidden />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900 dark:text-slate-50">
@@ -1571,11 +1581,12 @@ export default function JournalPage() {
 
           <div className="flex justify-center border-t border-slate-200/80 bg-slate-50/50 px-6 py-4 dark:border-slate-700/80 dark:bg-slate-900/30">
             <AlertDialogCancel
+              disabled={isSaving}
               onClick={(e) => {
                 e.preventDefault();
-                setIsSaveModalOpen(false);
+                if (!isSaving) setIsSaveModalOpen(false);
               }}
-              className="min-w-[140px] border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+              className="min-w-[140px] border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
             >
               キャンセル
             </AlertDialogCancel>
@@ -1754,6 +1765,16 @@ export default function JournalPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 保存中オーバーレイ：画面全体を暗くしてクリックをブロック */}
+      {isSaving && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-white/90 px-8 py-6 shadow-2xl dark:bg-slate-900/90">
+            <Loader2 className="size-8 animate-spin text-primary" />
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">保存中…</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
