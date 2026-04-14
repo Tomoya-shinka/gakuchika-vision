@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI, { toFile } from "openai";
 
+export const maxDuration = 30;
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: NextRequest) {
@@ -11,7 +13,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "audio field is required" }, { status: 400 });
     }
 
-    const file = await toFile(audioBlob, "audio.webm", { type: audioBlob.type });
+    const mime = audioBlob.type || "audio/webm";
+    const ext = mime.includes("mp4") ? "mp4" : "webm";
+    const file = await toFile(audioBlob, `audio.${ext}`, { type: mime });
     const result = await openai.audio.transcriptions.create({
       file,
       model: "whisper-1",

@@ -473,9 +473,13 @@ export default function JournalPage() {
       audioChunksRef.current = [];
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
-        : "audio/webm";
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+        ? "audio/mp4"
+        : "";
       const recorder = new MediaRecorder(stream, {
-        mimeType,
+        ...(mimeType ? { mimeType } : {}),
         audioBitsPerSecond: 192_000,
       });
       mediaRecorderRef.current = recorder;
@@ -497,7 +501,8 @@ export default function JournalPage() {
           setVoiceReview({ audioUrl, audioBlob, durationSec, transcription: "", isTranscribing: true });
           try {
             const form = new FormData();
-            form.append("audio", audioBlob, "audio.webm");
+            const audioExt = (recorder.mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
+            form.append("audio", audioBlob, `audio.${audioExt}`);
             const res = await fetch("/api/transcribe", { method: "POST", body: form });
             if (!res.ok) throw new Error("transcription failed");
             const { text } = (await res.json()) as { text: string };
