@@ -678,6 +678,8 @@ export default function JournalPage() {
       attachedImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
       setAttachedImages([]);
 
+      // 保存完了 → オーバーレイを即座に解除してからトースト表示
+      setIsSaving(false);
       toast.success("保存しました", {
         description:
           visibility === "public"
