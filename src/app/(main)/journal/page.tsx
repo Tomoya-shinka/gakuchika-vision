@@ -500,15 +500,22 @@ export default function JournalPage() {
             : 0;
           setVoiceReview({ audioUrl, audioBlob, durationSec, transcription: "", isTranscribing: true });
           try {
+            console.log("[transcribe] blob size:", audioBlob.size, "type:", audioBlob.type);
+            if (audioBlob.size === 0) throw new Error("録音データが空です。もう一度試してください。");
             const form = new FormData();
             const audioExt = (recorder.mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
             form.append("audio", audioBlob, `audio.${audioExt}`);
             const res = await fetch("/api/transcribe", { method: "POST", body: form });
-            if (!res.ok) throw new Error("transcription failed");
+            if (!res.ok) {
+              const errBody = await res.text().catch(() => "");
+              throw new Error(`transcription failed (${res.status}): ${errBody}`);
+            }
             const { text } = (await res.json()) as { text: string };
             setVoiceReview((prev) => prev ? { ...prev, transcription: text ?? "", isTranscribing: false } : prev);
-          } catch {
-            setVoiceReview((prev) => prev ? { ...prev, isTranscribing: false } : prev);
+          } catch (err) {
+            console.error("[transcribe] error:", err);
+            const msg = err instanceof Error ? err.message : "文字起こしに失敗しました";
+            setVoiceReview((prev) => prev ? { ...prev, transcription: `⚠️ ${msg}`, isTranscribing: false } : prev);
           }
         })();
       };
