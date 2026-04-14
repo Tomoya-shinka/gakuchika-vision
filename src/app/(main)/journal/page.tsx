@@ -480,7 +480,7 @@ export default function JournalPage() {
         : "";
       const recorder = new MediaRecorder(stream, {
         ...(mimeType ? { mimeType } : {}),
-        audioBitsPerSecond: 192_000,
+        audioBitsPerSecond: 32_000, // 音声認識用途。192kbps は Vercel 4.5MB 制限を超えるため低ビットレートに
       });
       mediaRecorderRef.current = recorder;
 
