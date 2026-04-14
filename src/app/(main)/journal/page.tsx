@@ -34,6 +34,8 @@ import {
   Globe,
   Lock,
   Loader2,
+  Copy,
+  Check,
   Bold,
   Italic,
   Strikethrough,
@@ -301,6 +303,7 @@ export default function JournalPage() {
     isTranscribing: boolean;
   } | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isTranscriptionCopied, setIsTranscriptionCopied] = useState(false);
   const [isVoicePlaying, setIsVoicePlaying] = useState(false);
   const [voicePlaySec, setVoicePlaySec] = useState(0);
   const [voiceDurationSec, setVoiceDurationSec] = useState(0);
@@ -1462,11 +1465,30 @@ export default function JournalPage() {
               <div className="flex min-h-[12rem] flex-col gap-1.5">
                 <div className="flex shrink-0 items-center gap-2">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300">文字起こし</p>
-                  {voiceReview.isTranscribing && (
+                  {voiceReview.isTranscribing ? (
                     <span className="flex items-center gap-1 text-xs text-slate-400">
                       <Loader2 className="size-3 animate-spin" />
                       変換中...
                     </span>
+                  ) : voiceReview.transcription && !voiceReview.transcription.startsWith("⚠️") && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(voiceReview.transcription);
+                        setIsTranscriptionCopied(true);
+                        toast.success("クリップボードにコピーされました");
+                        setTimeout(() => setIsTranscriptionCopied(false), 2000);
+                      }}
+                      className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      aria-label="文字起こしをコピー"
+                    >
+                      {isTranscriptionCopied ? (
+                        <Check className="size-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                      <span>{isTranscriptionCopied ? "コピー済み" : "コピー"}</span>
+                    </button>
                   )}
                 </div>
                 <Textarea
