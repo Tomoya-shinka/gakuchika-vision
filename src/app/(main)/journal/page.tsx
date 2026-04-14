@@ -322,11 +322,26 @@ export default function JournalPage() {
 
   useEffect(() => { templateRef.current = template; }, [template]);
 
+  const MAX_RECORD_SECONDS = 8 * 60; // 8分上限（Whisper + Vercel 60秒タイムアウトを考慮）
+
   useEffect(() => {
     if (!isRecording) { setRecordingSeconds(0); return; }
     const id = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, [isRecording]);
+
+  // 録音時間が上限に達したら自動停止
+  useEffect(() => {
+    if (!isRecording) return;
+    if (recordingSeconds === MAX_RECORD_SECONDS - 60) {
+      toast.warning("録音残り1分です。自動停止します。", { duration: 5000 });
+    }
+    if (recordingSeconds >= MAX_RECORD_SECONDS) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      toast.info("録音時間の上限（8分）に達したため自動停止しました。");
+    }
+  }, [isRecording, recordingSeconds]);
 
   useEffect(() => {
     if (!isRecording) return;

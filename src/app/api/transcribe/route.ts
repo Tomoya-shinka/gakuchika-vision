@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI, { toFile } from "openai";
 
-export const maxDuration = 30;
+export const maxDuration = 60; // Vercel Hobby 上限。Pro プランなら 300 まで設定可能
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
