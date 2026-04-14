@@ -1,6 +1,6 @@
 # Firebase データ構造ドキュメント
 
-> 最終更新: 2026-04-11
+> 最終更新: 2026-04-15
 
 ---
 
@@ -86,9 +86,12 @@ setDoc(doc(db, "users", uid), { ...data }, { merge: true })
 | `isPublic` | boolean | — | 公開フラグ（`true` = フィードに表示）。ジャーナル投稿では必須。Snap・つぶやきは省略可（省略時は非公開扱い） |
 | `type` | `"snap"` \| `"tweet"` \| undefined | — | 投稿種別。未設定 = ジャーナル |
 | `likes` | string[] | — | いいねしたユーザー UID の配列 |
-| `audioUrl` | string | — | 音声ファイル URL |
+| `audioUrl` | string | — | 音声ファイル URL（Firebase Storage） |
 | `audioDurationSec` | number | — | 音声の長さ（秒） |
+| `transcription` | string | — | 音声の文字起こしテキスト（Whisper API による。音声添付時のみ保存） |
 | `imageUrls` | string[] | — | 添付画像 URL の配列 |
+| `visibility` | `"public"` \| `"private"` | — | 公開設定。`isPublic` と対応（`"public"` = `isPublic: true`） |
+| `commentsEnabled` | boolean | — | コメント受付フラグ（保存時にユーザーの通知設定から継承） |
 
 ### `type` フィールドの値一覧
 
@@ -317,11 +320,23 @@ Firestore と並行してローカルキャッシュ・一部データの localS
 | `/api/upload-image` | POST | なし（Firebase Storage のみ） |
 | `/api/upload-audio` | POST | なし（Firebase Storage のみ） |
 | `/api/upload-avatar` | POST | なし（Firebase Storage のみ） |
-| `/api/transcribe` | POST | なし（音声文字起こし。結果はフロント側で利用） |
+| `/api/transcribe` | POST | なし（Whisper API で音声文字起こし。結果はフロント側で利用。`maxDuration=60`s） |
 
 ---
 
 ## AI 機能とデータの関係
+
+### 音声録音・文字起こしの制約
+
+| 項目 | 値 | 理由 |
+|---|---|---|
+| 最大録音時間 | **8分** | Vercel タイムアウト（60秒）内に Whisper 処理を収めるため |
+| 録音ビットレート | **32 kbps** | Vercel の request body 上限 4.5MB 以内に収めるため（192kbps では 6 分超で超過） |
+| Vercel `maxDuration` | **60秒**（Hobby 上限） | Pro プランなら 300秒まで設定可能 |
+
+> 8分録音時のファイルサイズ目安: 32kbps × 480秒 ÷ 8 ≈ **1.9 MB**
+
+---
 
 ### チャット AI のコンテキスト構成（`/api/ai-chat`）
 
