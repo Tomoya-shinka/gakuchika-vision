@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, CheckCircle2, Camera, Loader2 } from "lucide-react";
+import { ChevronLeft, Camera, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import {
 } from "@/lib/user-profile-firestore";
 
 export default function AccountSettingsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const [firestoreProfile, setFirestoreProfile] = useState<FirestoreUserProfile | null>(null);
   const [editForm, setEditForm] = useState<UserProfile>(() => {
@@ -31,7 +33,6 @@ export default function AccountSettingsPage() {
       return { name: "", university: "", status: "", graduationDate: "", enrollmentDate: "", birthDate: "", isStudent: true };
     }
   });
-  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -134,8 +135,7 @@ export default function AccountSettingsPage() {
       }
     }
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    router.push("/settings");
   };
 
   const displayName = editForm.name || "?";
@@ -290,12 +290,6 @@ export default function AccountSettingsPage() {
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? "保存中…" : "保存する"}
                 </Button>
-                {saved && (
-                  <p className="flex items-center gap-1.5 text-xs text-sky-600 dark:text-sky-400">
-                    <CheckCircle2 className="size-3.5" />
-                    保存しました
-                  </p>
-                )}
               </div>
             </CardContent>
           </Card>
