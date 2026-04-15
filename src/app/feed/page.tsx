@@ -549,9 +549,9 @@ export default function FeedPage() {
                 <Card
                   key={item.id}
                   onClick={() => router.push(`/feed/${item.id}`)}
-                  className="cursor-pointer border border-slate-100 bg-white p-0 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                  className="cursor-pointer gap-0 border border-slate-100 bg-white p-0 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
                 >
-                  <CardHeader className="relative px-6 pb-0 pt-5 sm:pt-6">
+                  <CardHeader className="relative px-6 pb-0 pt-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
                         <span>{formatDate(item.createdAt)}</span>
@@ -601,7 +601,7 @@ export default function FeedPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="space-y-4 border-t border-slate-100 px-6 pb-5 pt-4 dark:border-slate-800/70">
+                  <CardContent className="space-y-4 border-t border-slate-100 px-6 pb-5 pt-3 dark:border-slate-800/70">
                     {item.title && (
                       <p className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-50">
                         {item.title}
