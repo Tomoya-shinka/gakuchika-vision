@@ -1,6 +1,6 @@
 # Firebase データ構造ドキュメント
 
-> 最終更新: 2026-04-15
+> 最終更新: 2026-04-16
 
 ---
 
@@ -92,6 +92,7 @@ setDoc(doc(db, "users", uid), { ...data }, { merge: true })
 | `imageUrls` | string[] | — | 添付画像 URL の配列 |
 | `visibility` | `"public"` \| `"private"` | — | 公開設定。`isPublic` と対応（`"public"` = `isPublic: true`） |
 | `commentsEnabled` | boolean | — | コメント受付フラグ（保存時にユーザーの通知設定から継承） |
+| `updatedAt` | Timestamp | — | 最終編集日時（`/journal/[id]/edit` での更新時のみ付与） |
 
 ### `type` フィールドの値一覧
 
@@ -137,13 +138,21 @@ addDoc(collection(db, "journals"), { userId, content, type: "snap", likes: [], c
 // 更新（公開設定変更・いいねなど）
 updateDoc(doc(db, "journals", journalId), { isPublic: true })
 
+// 更新（ジャーナル編集ページ: タイトル・本文を修正）
+updateDoc(doc(db, "journals", journalId), {
+  title,
+  content,            // HTML リッチテキスト
+  updatedAt: Timestamp.now(),
+})
+
 // 削除
 deleteDoc(doc(db, "journals", journalId))
 ```
 
 **関連ファイル**:
-- `src/app/(main)/journal/page.tsx`
-- `src/app/(main)/journal/[id]/page.tsx`
+- `src/app/(main)/journal/page.tsx`（新規作成）
+- `src/app/(main)/journal/[id]/page.tsx`（詳細表示）
+- `src/app/(main)/journal/[id]/edit/page.tsx`（タイトル・本文の編集）
 - `src/app/(main)/mypage/page.tsx`
 - `src/app/api/feed/journals/route.ts`
 
