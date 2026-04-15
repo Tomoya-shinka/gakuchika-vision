@@ -149,17 +149,18 @@ export default function LoginPage() {
             >
               ログイン
             </Button>
-            <Button
-              variant="outline"
-              className="w-full border-border"
-              size="lg"
-              disabled={formLoading}
-              asChild
-            >
-              <Link href="/signup">新規登録</Link>
-            </Button>
           </div>
         </div>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          アカウントをお持ちでない方は
+          <Link
+            href="/signup"
+            className="ml-1 font-medium text-primary underline-offset-4 hover:underline"
+          >
+            こちら（新規登録）
+          </Link>
+        </p>
       </div>
     </div>
   );
