@@ -539,7 +539,7 @@ export default function MyPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
                           <DropdownMenuItem asChild>
-                            <Link href={`/journal/${entry.id}`}>
+                            <Link href={`/journal/${entry.id}/edit`}>
                               <Pencil className="mr-2 size-3.5" />
                               編集
                             </Link>
