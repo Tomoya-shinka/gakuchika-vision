@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Camera, Loader2 } from "lucide-react";
+import { ChevronLeft, Camera, Loader2, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ export default function AccountSettingsPage() {
     }
   });
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,7 +136,8 @@ export default function AccountSettingsPage() {
       }
     }
     setSaving(false);
-    router.push("/settings");
+    setSaved(true);
+    setTimeout(() => router.push("/settings"), 1500);
   };
 
   const displayName = editForm.name || "?";
@@ -287,8 +289,20 @@ export default function AccountSettingsPage() {
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "保存中…" : "保存する"}
+                <Button onClick={handleSave} disabled={saving || saved}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-1.5 size-4 animate-spin" />
+                      保存中…
+                    </>
+                  ) : saved ? (
+                    <>
+                      <CheckCircle2 className="mr-1.5 size-4" />
+                      保存が完了しました
+                    </>
+                  ) : (
+                    "保存する"
+                  )}
                 </Button>
               </div>
             </CardContent>
