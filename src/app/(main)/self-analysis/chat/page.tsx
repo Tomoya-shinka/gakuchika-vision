@@ -269,7 +269,7 @@ export default function SelfAnalysisChatPage() {
     lastAssistantHasInsightSignal(messages);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex flex-1 flex-col bg-background">
       {/* Header */}
       <header className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-background px-4">
         <Link
@@ -309,7 +309,7 @@ export default function SelfAnalysisChatPage() {
       </header>
 
       {/* Chat */}
-      <main className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
         <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
           {messages.map((message) => {
             const text = getTextFromParts(message.parts ?? []);
