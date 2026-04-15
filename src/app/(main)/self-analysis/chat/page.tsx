@@ -100,6 +100,7 @@ export default function SelfAnalysisChatPage() {
   const [isSavingFinal, setIsSavingFinal] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const hasInitialGreetingSent = useRef(false);
   const transport = useMemo(
@@ -124,6 +125,17 @@ export default function SelfAnalysisChatPage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // textarea の高さを内容に合わせて自動調整（最大 128px = 約5行）
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const maxHeight = 128;
+    const next = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [input]);
 
   useEffect(() => {
     scrollToBottom();
@@ -448,9 +460,10 @@ export default function SelfAnalysisChatPage() {
 
       {/* Input */}
       <div className="flex shrink-0 flex-col gap-2 border-t border-border bg-card p-4">
-        <form onSubmit={handleSendMessage} className="flex gap-2">
-          <input
-            type="text"
+        <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -462,7 +475,8 @@ export default function SelfAnalysisChatPage() {
             placeholder="メッセージを入力..."
             disabled={isLoading}
             className={cn(
-              "flex-1 rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground",
+              "flex-1 resize-none overflow-hidden rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground",
+              "leading-relaxed",
               "focus:border-primary focus:ring-2 focus:ring-primary/20",
               "disabled:cursor-not-allowed disabled:opacity-60",
               "border-input bg-background"
