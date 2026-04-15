@@ -134,11 +134,14 @@ async function doStream(
           },
           input: inputMessages,
         });
+        // AI SDK は text-delta の前に text-start、後に text-end が必須
+        writer.write({ type: "text-start", id: messageId });
         for await (const event of nativeStream) {
           if (event.type === "response.output_text.delta") {
             writer.write({ type: "text-delta", delta: event.delta, id: messageId });
           }
         }
+        writer.write({ type: "text-end", id: messageId });
       },
     });
     return createUIMessageStreamResponse({ stream: uiStream });
