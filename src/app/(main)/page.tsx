@@ -718,7 +718,7 @@ export default function HomePage() {
       <div className={cn("hidden sm:flex sm:flex-1 sm:overflow-hidden", bgGradient)}>
         <div className="flex flex-1 gap-2 overflow-hidden p-2">
           {/* 左列: ボタン（上）→ カウントダウン（中）→ 統計3列（下）／カレンダー高さに引っ張られない */}
-          <div className={cn("flex w-full shrink-0 flex-col gap-2 self-start", sidebarOpen ? "max-w-[380px]" : "max-w-[560px]")}>
+          <div className={cn("flex w-full shrink-0 flex-col gap-2 self-start transition-[max-width] duration-200 ease-linear", sidebarOpen ? "max-w-[380px]" : "max-w-[560px]")}>
             <div className="h-20 w-full shrink-0">
               <Button size="lg" className="h-full w-full gap-2 px-6 text-sm" asChild>
                 <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
