@@ -714,9 +714,9 @@ export default function HomePage() {
 
       {/* ===== PC レイアウト（スクロールなし、高さを埋める）===== */}
       <div className={cn("hidden sm:flex sm:flex-1 sm:overflow-hidden", bgGradient)}>
-        <div className="flex flex-1 gap-2 overflow-hidden p-3">
+        <div className="flex flex-1 gap-2 overflow-hidden p-2">
           {/* 左列: ボタン（上）→ カウントダウン（中）→ 統計3列（下）／カレンダー高さに引っ張られない */}
-          <div className="flex w-[44%] shrink-0 flex-col gap-2 self-start">
+          <div className="flex w-[42%] shrink-0 flex-col gap-2 self-start">
             <div className="h-20 w-full shrink-0">
               <Button size="lg" className="h-full w-full gap-2 px-6 text-sm" asChild>
                 <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
@@ -768,7 +768,7 @@ export default function HomePage() {
           {/* 右列: カレンダーのみ */}
           <div className="flex flex-1 min-w-0 flex-col min-h-0">
             <Card className="flex flex-1 min-h-0 flex-col overflow-hidden border-slate-200/80 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/30">
-              <CardContent className="flex flex-1 min-h-0 flex-col px-4 py-4">
+              <CardContent className="flex flex-1 min-h-0 flex-col px-3 py-3">
                 <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
                   <button onClick={() => setMonthOffset((o) => o - 1)} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="前の月">
                     <ChevronLeft className="size-4" />
