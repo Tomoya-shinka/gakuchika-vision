@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { User, Mic, ChevronRight, ChevronLeft } from "lucide-react";
+import { User, Mic, Timer, ChevronRight, ChevronLeft } from "lucide-react";
 
 const settingsItems = [
   {
@@ -7,6 +7,12 @@ const settingsItems = [
     icon: User,
     label: "アカウント設定",
     description: "名前・大学・学年などのプロフィール",
+  },
+  {
+    href: "/settings/countdown",
+    icon: Timer,
+    label: "カウントダウン設定",
+    description: "ホームに表示するカウントダウンカードの管理",
   },
   {
     href: "/settings/mic",
