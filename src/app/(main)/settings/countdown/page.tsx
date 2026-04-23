@@ -47,6 +47,7 @@ export default function CountdownSettingsPage() {
 
   // フォーム状態
   const [formLabel, setFormLabel] = useState("");
+  const [formStartDate, setFormStartDate] = useState("");
   const [formDeadline, setFormDeadline] = useState("");
   const [formColor, setFormColor] = useState<CountdownCardColor>("sky");
 
@@ -65,6 +66,7 @@ export default function CountdownSettingsPage() {
   const openAddDialog = () => {
     setEditingCard(null);
     setFormLabel("");
+    setFormStartDate("");
     setFormDeadline("");
     setFormColor("sky");
     setDialogOpen(true);
@@ -74,6 +76,7 @@ export default function CountdownSettingsPage() {
   const openEditDialog = (card: CustomCountdownCard) => {
     setEditingCard(card);
     setFormLabel(card.label);
+    setFormStartDate(card.startDate ?? "");
     setFormDeadline(card.deadline);
     setFormColor(card.color);
     setDialogOpen(true);
@@ -87,7 +90,13 @@ export default function CountdownSettingsPage() {
         ...settings,
         customCards: settings.customCards.map((c) =>
           c.id === editingCard.id
-            ? { ...c, label: formLabel.trim(), deadline: formDeadline, color: formColor }
+            ? {
+                ...c,
+                label: formLabel.trim(),
+                startDate: formStartDate || undefined,
+                deadline: formDeadline,
+                color: formColor,
+              }
             : c
         ),
       });
@@ -99,6 +108,7 @@ export default function CountdownSettingsPage() {
           {
             id: crypto.randomUUID(),
             label: formLabel.trim(),
+            startDate: formStartDate || undefined,
             deadline: formDeadline,
             color: formColor,
             createdAt: new Date().toISOString(),
@@ -298,6 +308,22 @@ export default function CountdownSettingsPage() {
                 maxLength={30}
               />
             </div>
+            {/* 開始日 */}
+            <div className="space-y-1.5">
+              <Label htmlFor="cd-start">
+                開始日
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  （進捗バーの起点。省略するとカード作成日）
+                </span>
+              </Label>
+              <Input
+                id="cd-start"
+                type="date"
+                value={formStartDate}
+                max={formDeadline || undefined}
+                onChange={(e) => setFormStartDate(e.target.value)}
+              />
+            </div>
             {/* 期限 */}
             <div className="space-y-1.5">
               <Label htmlFor="cd-deadline">期限日</Label>
@@ -305,7 +331,7 @@ export default function CountdownSettingsPage() {
                 id="cd-deadline"
                 type="date"
                 value={formDeadline}
-                min={TODAY}
+                min={formStartDate || TODAY}
                 onChange={(e) => setFormDeadline(e.target.value)}
               />
             </div>

@@ -12,10 +12,12 @@ export interface CustomCountdownCard {
   id: string;
   /** 表示ラベル。例: "就活解禁まで" */
   label: string;
+  /** 開始日 YYYY-MM-DD（プログレスバーの起点。未設定時は createdAt を使用） */
+  startDate?: string;
   /** 期限日 YYYY-MM-DD */
   deadline: string;
   color: CountdownCardColor;
-  /** カード作成日時 ISO 文字列（プログレスバーの起点） */
+  /** カード作成日時 ISO 文字列 */
   createdAt: string;
 }
 
@@ -132,12 +134,15 @@ export function getCountdownPartsFromDeadline(deadline: string): CountdownParts 
   };
 }
 
-/** カード作成日〜期限日の進捗率（%）を返す */
+/** 開始日（またはカード作成日）〜期限日の進捗率（%）を返す */
 export function getProgressFromDeadline(
   deadline: string,
+  startDate: string | undefined,
   createdAt: string
 ): number {
-  const start = new Date(createdAt).getTime();
+  const start = new Date(
+    startDate ? `${startDate}T00:00:00+09:00` : createdAt
+  ).getTime();
   const end = new Date(`${deadline}T00:00:00+09:00`).getTime();
   const now = Date.now();
   if (end <= start) return 100;

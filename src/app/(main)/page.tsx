@@ -597,7 +597,7 @@ export default function HomePage() {
     for (const card of countdownSettings.customCards) {
       const parts = customCardParts[card.id] ?? { days: 0, hours: 0, minutes: 0, seconds: 0 };
       const colorOpt = COLOR_OPTIONS.find((c) => c.value === card.color) ?? COLOR_OPTIONS[0]!;
-      const progress = getProgressFromDeadline(card.deadline, card.createdAt);
+      const progress = getProgressFromDeadline(card.deadline, card.startDate, card.createdAt);
       cards.push({
         key: card.id,
         node: (
