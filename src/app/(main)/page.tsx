@@ -502,12 +502,14 @@ export default function HomePage() {
     );
   }
 
-  /** カウントダウンカード（横スクロール式・複数カード対応） */
+  /** カウントダウンカード（横スクロール式・無限ループ対応） */
   function CountdownContent({ className }: { className?: string }) {
+    // ── hooks（条件分岐より前に宣言） ──
     const scrollRef = useRef<HTMLDivElement>(null);
     const [activeIdx, setActiveIdx] = useState(0);
+    const snapBackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // 表示するカードを順番に組み立てる
+    // ── カード配列を構築 ──
     type CardEntry = { key: string; node: React.ReactNode };
     const cards: CardEntry[] = [];
 
@@ -632,12 +634,72 @@ export default function HomePage() {
       });
     }
 
-    if (cards.length === 0) return null;
+    const total = cards.length;
+    // 無限ループ用: 末尾に先頭クローンを追加（2枚以上のとき）
+    const loopCards = total > 1 ? [...cards, { key: `${cards[0]!.key}-clone`, node: cards[0]!.node }] : cards;
 
+    // ── 自動スクロール（GoalsCarousel と同じ無限ループ方式） ──
+    useEffect(() => {
+      if (total <= 1) return;
+      const el = scrollRef.current;
+      if (!el) return;
+      const prefersReduced =
+        typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      if (prefersReduced) return;
+
+      const id = window.setInterval(() => {
+        const itemWidth = el.clientWidth;
+        if (!itemWidth) return;
+        const current = Math.round(el.scrollLeft / itemWidth);
+        const next = current + 1;
+
+        el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
+
+        // クローン（末尾）まで来たら先頭へ瞬時ジャンプ
+        if (next >= total) {
+          setTimeout(() => {
+            el.style.scrollSnapType = "none";
+            el.scrollLeft = 0;
+            setActiveIdx(0);
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                el.style.scrollSnapType = "";
+              });
+            });
+          }, 550);
+        }
+      }, 4500);
+
+      return () => window.clearInterval(id);
+    }, [total]);
+
+    if (total === 0) return null;
+
+    // ── スクロールハンドラ（ドット更新 + 手動でクローン到達時のジャンプ） ──
     const handleScroll = () => {
       const el = scrollRef.current;
       if (!el || !el.clientWidth) return;
-      setActiveIdx(Math.round(el.scrollLeft / el.clientWidth));
+      const idx = Math.round(el.scrollLeft / el.clientWidth);
+
+      // ドット: クローン位置（= total）では先頭ドットを点灯
+      setActiveIdx(idx >= total ? 0 : idx);
+
+      // 手動スクロールでクローンに到達した場合も先頭へ戻す
+      if (idx >= total) {
+        if (snapBackTimer.current) clearTimeout(snapBackTimer.current);
+        snapBackTimer.current = setTimeout(() => {
+          const e = scrollRef.current;
+          if (!e) return;
+          e.style.scrollSnapType = "none";
+          e.scrollLeft = 0;
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              e.style.scrollSnapType = "";
+            });
+          });
+        }, 80);
+      }
     };
 
     return (
@@ -650,11 +712,10 @@ export default function HomePage() {
         {/* 横スクロール式カードエリア */}
         <div
           ref={scrollRef}
-          className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth"
-          style={{ scrollbarWidth: "none" }}
+          className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={handleScroll}
         >
-          {cards.map((c) => (
+          {loopCards.map((c) => (
             <div key={c.key} className="min-w-full shrink-0 snap-start">
               {c.node}
             </div>
@@ -662,7 +723,7 @@ export default function HomePage() {
         </div>
 
         {/* ドットインジケーター（2枚以上のとき表示） */}
-        {cards.length > 1 && (
+        {total > 1 && (
           <div className="flex justify-center gap-1.5 pb-2.5">
             {cards.map((c, i) => (
               <button
@@ -671,7 +732,7 @@ export default function HomePage() {
                 aria-label={`カード ${i + 1}`}
                 onClick={() =>
                   scrollRef.current?.scrollTo({
-                    left: i * scrollRef.current.clientWidth,
+                    left: i * (scrollRef.current.clientWidth ?? 0),
                     behavior: "smooth",
                   })
                 }
