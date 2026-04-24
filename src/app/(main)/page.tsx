@@ -405,8 +405,39 @@ function CountdownContent({
     }
   };
 
+  const scrollTo = (targetIdx: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const itemWidth = el.clientWidth;
+    if (!itemWidth) return;
+    // 前へ: activeIdx が 0 のときはクローンなしで末尾へジャンプ
+    if (targetIdx < 0) {
+      el.style.scrollSnapType = "none";
+      el.scrollLeft = (total - 1) * itemWidth;
+      setActiveIdx(total - 1);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { el.style.scrollSnapType = ""; });
+      });
+      return;
+    }
+    el.scrollTo({ left: targetIdx * itemWidth, behavior: "smooth" });
+  };
+
   return (
-    <section className={cn("relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm backdrop-blur-sm", className)}>
+    <section className={cn("group/countdown relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm backdrop-blur-sm", className)}>
+      {/* 左ボタン */}
+      {total > 1 && (
+        <button
+          type="button"
+          aria-label="前のカード"
+          onClick={() => scrollTo(activeIdx - 1)}
+          className="absolute left-1 top-1/2 z-10 -translate-y-1/2 rounded-full p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:text-muted-foreground group-hover/countdown:opacity-100"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+      )}
+
+      {/* スクロールトラック */}
       <div
         ref={scrollRef}
         className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -416,6 +447,20 @@ function CountdownContent({
           <div key={c.key} className="min-w-full shrink-0 snap-start">{c.node}</div>
         ))}
       </div>
+
+      {/* 右ボタン */}
+      {total > 1 && (
+        <button
+          type="button"
+          aria-label="次のカード"
+          onClick={() => scrollTo(activeIdx + 1)}
+          className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-full p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:text-muted-foreground group-hover/countdown:opacity-100"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      )}
+
+      {/* ドットインジケーター */}
       {total > 1 && (
         <div className="flex justify-center gap-1.5 pb-2.5">
           {cards.map((c, i) => (
@@ -423,7 +468,7 @@ function CountdownContent({
               key={c.key}
               type="button"
               aria-label={`カード ${i + 1}`}
-              onClick={() => scrollRef.current?.scrollTo({ left: i * (scrollRef.current.clientWidth ?? 0), behavior: "smooth" })}
+              onClick={() => scrollTo(i)}
               className={cn("size-1.5 rounded-full transition-colors", i === activeIdx ? "bg-primary" : "bg-muted-foreground/30")}
             />
           ))}
