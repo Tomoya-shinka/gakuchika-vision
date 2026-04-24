@@ -431,7 +431,7 @@ function CountdownContent({
           type="button"
           aria-label="前のカード"
           onClick={() => scrollTo(activeIdx - 1)}
-          className="absolute left-1 top-1/2 z-10 -translate-y-1/2 rounded-full p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:text-muted-foreground group-hover/countdown:opacity-100"
+          className="absolute left-0.5 top-1/2 z-10 -translate-y-1/2 rounded-full p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:bg-muted/60 hover:text-muted-foreground group-hover/countdown:opacity-100"
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -454,7 +454,7 @@ function CountdownContent({
           type="button"
           aria-label="次のカード"
           onClick={() => scrollTo(activeIdx + 1)}
-          className="absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-full p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:text-muted-foreground group-hover/countdown:opacity-100"
+          className="absolute right-0.5 top-1/2 z-10 -translate-y-1/2 rounded-full p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:bg-muted/60 hover:text-muted-foreground group-hover/countdown:opacity-100"
         >
           <ChevronRight className="size-4" />
         </button>
