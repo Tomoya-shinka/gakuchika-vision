@@ -325,7 +325,7 @@ function CountdownContent({
       key: card.id,
       node: (
         <div className="flex flex-col items-center p-3 text-center sm:p-4">
-          <p className="mb-2 text-sm text-muted-foreground sm:text-base">{card.label}まで、あと</p>
+          <p className="mb-2 text-sm text-muted-foreground sm:text-base">{card.label}、あと</p>
           <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
             <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{parts.days}</span>
             <span className="text-lg text-muted-foreground">日</span>

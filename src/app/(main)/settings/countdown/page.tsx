@@ -300,13 +300,20 @@ export default function CountdownSettingsPage() {
             {/* タイトル */}
             <div className="space-y-1.5">
               <Label htmlFor="cd-label">タイトル</Label>
-              <Input
-                id="cd-label"
-                value={formLabel}
-                onChange={(e) => setFormLabel(e.target.value)}
-                placeholder="例: 就活解禁まで、試験まで…"
-                maxLength={30}
-              />
+              <div className="flex items-center gap-1.5">
+                <Input
+                  id="cd-label"
+                  value={formLabel}
+                  onChange={(e) => setFormLabel(e.target.value)}
+                  placeholder="例: 就活解禁まで、試験まで"
+                  maxLength={30}
+                  className="flex-1"
+                />
+                <span className="shrink-0 text-sm text-muted-foreground">、あと</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                「、あと」は自動で追加されます
+              </p>
             </div>
             {/* 開始日 */}
             <div className="space-y-1.5">
