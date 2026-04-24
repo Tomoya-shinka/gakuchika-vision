@@ -23,6 +23,7 @@ import {
   COLOR_OPTIONS,
   type CountdownSettings,
   type CountdownParts as CustomCountdownParts,
+  type CustomCountdownCard,
 } from "@/lib/countdown-cards";
 import { cn } from "@/lib/utils";
 import {
@@ -203,6 +204,232 @@ function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: bo
         ))}
       </div>
     </div>
+  );
+}
+
+interface CountdownContentProps {
+  className?: string;
+  isStudent: boolean;
+  countdown: CountdownParts;
+  progressPercent: number;
+  graduationDate: string;
+  showLifeCountdown: boolean;
+  birthDate: string;
+  lifeCountdown: CountdownParts;
+  lifeProgress: number;
+  customCards: CustomCountdownCard[];
+  customCardParts: Record<string, CustomCountdownParts>;
+}
+
+/** カウントダウンカード（横スクロール式・無限ループ対応） */
+function CountdownContent({
+  className,
+  isStudent,
+  countdown,
+  progressPercent,
+  graduationDate,
+  showLifeCountdown,
+  birthDate,
+  lifeCountdown,
+  lifeProgress,
+  customCards,
+  customCardParts,
+}: CountdownContentProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const snapBackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  type CardEntry = { key: string; node: React.ReactNode };
+  const cards: CardEntry[] = [];
+
+  if (isStudent) {
+    cards.push({
+      key: "graduation",
+      node: (
+        <div className="flex flex-col items-center p-3 text-center sm:p-4">
+          <p className="mb-2 text-sm text-muted-foreground sm:text-base">卒業まで、あと</p>
+          <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+            <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{countdown.days}</span>
+            <span className="text-lg text-muted-foreground">日</span>
+            <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.hours)}</span>
+            <span className="text-lg text-muted-foreground">時間</span>
+            <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.minutes)}</span>
+            <span className="text-lg text-muted-foreground">分</span>
+            <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.seconds)}</span>
+            <span className="text-lg text-muted-foreground">秒</span>
+          </div>
+          <div className="w-full max-w-md space-y-1.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
+              <span>大学生活の進捗</span>
+              <span>{Math.round(progressPercent)}%</span>
+            </div>
+            <Progress value={progressPercent} className="h-2 sm:h-3" />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            卒業予定：{(graduationDate || DEFAULT_GRADUATION_DATE).replace(/-/g, "/")}
+          </p>
+        </div>
+      ),
+    });
+  }
+
+  if (showLifeCountdown) {
+    cards.push({
+      key: "life",
+      node: (
+        <div className="flex flex-col items-center p-3 text-center sm:p-4">
+          <p className="mb-2 text-sm text-muted-foreground sm:text-base">
+            人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）
+          </p>
+          {birthDate ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+                <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{lifeCountdown.days}</span>
+                <span className="text-lg text-muted-foreground">日</span>
+                <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.hours)}</span>
+                <span className="text-lg text-muted-foreground">時間</span>
+                <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.minutes)}</span>
+                <span className="text-lg text-muted-foreground">分</span>
+                <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.seconds)}</span>
+                <span className="text-lg text-muted-foreground">秒</span>
+              </div>
+              <div className="w-full max-w-md space-y-1.5">
+                <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
+                  <span>人生の進捗</span>
+                  <span>{Math.round(lifeProgress)}%</span>
+                </div>
+                <Progress value={lifeProgress} className="h-2 sm:h-3 [&>div]:bg-amber-500" />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                生年月日：{birthDate.replace(/-/g, "/")}
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <p className="text-sm text-muted-foreground">生年月日を設定すると表示されます</p>
+              <a href="/mypage" className="text-xs text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400">
+                My Page で設定する →
+              </a>
+            </div>
+          )}
+        </div>
+      ),
+    });
+  }
+
+  for (const card of customCards) {
+    const parts = customCardParts[card.id] ?? { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    const colorOpt = COLOR_OPTIONS.find((c) => c.value === card.color) ?? COLOR_OPTIONS[0]!;
+    const progress = getProgressFromDeadline(card.deadline, card.startDate, card.createdAt);
+    cards.push({
+      key: card.id,
+      node: (
+        <div className="flex flex-col items-center p-3 text-center sm:p-4">
+          <p className="mb-2 text-sm text-muted-foreground sm:text-base">{card.label}まで、あと</p>
+          <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+            <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{parts.days}</span>
+            <span className="text-lg text-muted-foreground">日</span>
+            <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{pad2(parts.hours)}</span>
+            <span className="text-lg text-muted-foreground">時間</span>
+            <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{pad2(parts.minutes)}</span>
+            <span className="text-lg text-muted-foreground">分</span>
+            <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{pad2(parts.seconds)}</span>
+            <span className="text-lg text-muted-foreground">秒</span>
+          </div>
+          <div className="w-full max-w-md space-y-1.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
+              <span>経過</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className={cn("h-2 sm:h-3", colorOpt.progressClass)} />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            期限：{card.deadline.replace(/-/g, "/")}
+          </p>
+        </div>
+      ),
+    });
+  }
+
+  const total = cards.length;
+  const loopCards = total > 1 ? [...cards, { key: `${cards[0]!.key}-clone`, node: cards[0]!.node }] : cards;
+
+  useEffect(() => {
+    if (total <= 1) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (prefersReduced) return;
+
+    const id = window.setInterval(() => {
+      const itemWidth = el.clientWidth;
+      if (!itemWidth) return;
+      const current = Math.round(el.scrollLeft / itemWidth);
+      const next = current + 1;
+      el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
+      if (next >= total) {
+        setTimeout(() => {
+          el.style.scrollSnapType = "none";
+          el.scrollLeft = 0;
+          setActiveIdx(0);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => { el.style.scrollSnapType = ""; });
+          });
+        }, 550);
+      }
+    }, 4500);
+
+    return () => window.clearInterval(id);
+  }, [total]);
+
+  if (total === 0) return null;
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || !el.clientWidth) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveIdx(idx >= total ? 0 : idx);
+    if (idx >= total) {
+      if (snapBackTimer.current) clearTimeout(snapBackTimer.current);
+      snapBackTimer.current = setTimeout(() => {
+        const e = scrollRef.current;
+        if (!e) return;
+        e.style.scrollSnapType = "none";
+        e.scrollLeft = 0;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => { e.style.scrollSnapType = ""; });
+        });
+      }, 80);
+    }
+  };
+
+  return (
+    <section className={cn("relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm backdrop-blur-sm", className)}>
+      <div
+        ref={scrollRef}
+        className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onScroll={handleScroll}
+      >
+        {loopCards.map((c) => (
+          <div key={c.key} className="min-w-full shrink-0 snap-start">{c.node}</div>
+        ))}
+      </div>
+      {total > 1 && (
+        <div className="flex justify-center gap-1.5 pb-2.5">
+          {cards.map((c, i) => (
+            <button
+              key={c.key}
+              type="button"
+              aria-label={`カード ${i + 1}`}
+              onClick={() => scrollRef.current?.scrollTo({ left: i * (scrollRef.current.clientWidth ?? 0), behavior: "smooth" })}
+              className={cn("size-1.5 rounded-full transition-colors", i === activeIdx ? "bg-primary" : "bg-muted-foreground/30")}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -502,252 +729,6 @@ export default function HomePage() {
     );
   }
 
-  /** カウントダウンカード（横スクロール式・無限ループ対応） */
-  function CountdownContent({ className }: { className?: string }) {
-    // ── hooks（条件分岐より前に宣言） ──
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const [activeIdx, setActiveIdx] = useState(0);
-    const snapBackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // ── カード配列を構築 ──
-    type CardEntry = { key: string; node: React.ReactNode };
-    const cards: CardEntry[] = [];
-
-    // 1) 卒業カウントダウン（大学生のみ・削除不可）
-    if (isStudent) {
-      cards.push({
-        key: "graduation",
-        node: (
-          <div className="flex flex-col items-center p-3 text-center sm:p-4">
-            <p className="mb-2 text-sm text-muted-foreground sm:text-base">
-              卒業まで、あと
-            </p>
-            <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
-              <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{countdown.days}</span>
-              <span className="text-lg text-muted-foreground">日</span>
-              <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.hours)}</span>
-              <span className="text-lg text-muted-foreground">時間</span>
-              <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.minutes)}</span>
-              <span className="text-lg text-muted-foreground">分</span>
-              <span className="tabular-nums font-mono text-3xl font-bold text-sky-600 dark:text-sky-400">{pad2(countdown.seconds)}</span>
-              <span className="text-lg text-muted-foreground">秒</span>
-            </div>
-            <div className="w-full max-w-md space-y-1.5">
-              <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
-                <span>大学生活の進捗</span>
-                <span>{Math.round(progressPercent)}%</span>
-              </div>
-              <Progress value={progressPercent} className="h-2 sm:h-3" />
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              卒業予定：{(graduationDate || DEFAULT_GRADUATION_DATE).replace(/-/g, "/")}
-            </p>
-          </div>
-        ),
-      });
-    }
-
-    // 2) 人生の残り時間（設定でオフにできる）
-    if (countdownSettings.showLifeCountdown) {
-      cards.push({
-        key: "life",
-        node: (
-          <div className="flex flex-col items-center p-3 text-center sm:p-4">
-            <p className="mb-2 text-sm text-muted-foreground sm:text-base">
-              人生の残り時間（平均寿命{AVERAGE_LIFESPAN_YEARS}歳換算）
-            </p>
-            {birthDate ? (
-              <>
-                <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{lifeCountdown.days}</span>
-                  <span className="text-lg text-muted-foreground">日</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.hours)}</span>
-                  <span className="text-lg text-muted-foreground">時間</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.minutes)}</span>
-                  <span className="text-lg text-muted-foreground">分</span>
-                  <span className="tabular-nums font-mono text-3xl font-bold text-amber-500 dark:text-amber-400">{pad2(lifeCountdown.seconds)}</span>
-                  <span className="text-lg text-muted-foreground">秒</span>
-                </div>
-                <div className="w-full max-w-md space-y-1.5">
-                  <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
-                    <span>人生の進捗</span>
-                    <span>{Math.round(lifeProgress)}%</span>
-                  </div>
-                  <Progress value={lifeProgress} className="h-2 sm:h-3 [&>div]:bg-amber-500" />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  生年月日：{birthDate.replace(/-/g, "/")}
-                </p>
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-3 py-4">
-                <p className="text-sm text-muted-foreground">
-                  生年月日を設定すると表示されます
-                </p>
-                <a
-                  href="/mypage"
-                  className="text-xs text-sky-600 underline underline-offset-2 hover:text-sky-700 dark:text-sky-400"
-                >
-                  My Page で設定する →
-                </a>
-              </div>
-            )}
-          </div>
-        ),
-      });
-    }
-
-    // 3) カスタムカード
-    for (const card of countdownSettings.customCards) {
-      const parts = customCardParts[card.id] ?? { days: 0, hours: 0, minutes: 0, seconds: 0 };
-      const colorOpt = COLOR_OPTIONS.find((c) => c.value === card.color) ?? COLOR_OPTIONS[0]!;
-      const progress = getProgressFromDeadline(card.deadline, card.startDate, card.createdAt);
-      cards.push({
-        key: card.id,
-        node: (
-          <div className="flex flex-col items-center p-3 text-center sm:p-4">
-            <p className="mb-2 text-sm text-muted-foreground sm:text-base">
-              {card.label}まで、あと
-            </p>
-            <div className="mb-4 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
-              <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{parts.days}</span>
-              <span className="text-lg text-muted-foreground">日</span>
-              <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{pad2(parts.hours)}</span>
-              <span className="text-lg text-muted-foreground">時間</span>
-              <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{pad2(parts.minutes)}</span>
-              <span className="text-lg text-muted-foreground">分</span>
-              <span className={cn("tabular-nums font-mono text-3xl font-bold", colorOpt.numberClass)}>{pad2(parts.seconds)}</span>
-              <span className="text-lg text-muted-foreground">秒</span>
-            </div>
-            <div className="w-full max-w-md space-y-1.5">
-              <div className="flex justify-between text-[10px] text-muted-foreground sm:text-xs">
-                <span>経過</span>
-                <span>{Math.round(progress)}%</span>
-              </div>
-              <Progress value={progress} className={cn("h-2 sm:h-3", colorOpt.progressClass)} />
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              期限：{card.deadline.replace(/-/g, "/")}
-            </p>
-          </div>
-        ),
-      });
-    }
-
-    const total = cards.length;
-    // 無限ループ用: 末尾に先頭クローンを追加（2枚以上のとき）
-    const loopCards = total > 1 ? [...cards, { key: `${cards[0]!.key}-clone`, node: cards[0]!.node }] : cards;
-
-    // ── 自動スクロール（GoalsCarousel と同じ無限ループ方式） ──
-    useEffect(() => {
-      if (total <= 1) return;
-      const el = scrollRef.current;
-      if (!el) return;
-      const prefersReduced =
-        typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-      if (prefersReduced) return;
-
-      const id = window.setInterval(() => {
-        const itemWidth = el.clientWidth;
-        if (!itemWidth) return;
-        const current = Math.round(el.scrollLeft / itemWidth);
-        const next = current + 1;
-
-        el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
-
-        // クローン（末尾）まで来たら先頭へ瞬時ジャンプ
-        if (next >= total) {
-          setTimeout(() => {
-            el.style.scrollSnapType = "none";
-            el.scrollLeft = 0;
-            setActiveIdx(0);
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                el.style.scrollSnapType = "";
-              });
-            });
-          }, 550);
-        }
-      }, 4500);
-
-      return () => window.clearInterval(id);
-    }, [total]);
-
-    if (total === 0) return null;
-
-    // ── スクロールハンドラ（ドット更新 + 手動でクローン到達時のジャンプ） ──
-    const handleScroll = () => {
-      const el = scrollRef.current;
-      if (!el || !el.clientWidth) return;
-      const idx = Math.round(el.scrollLeft / el.clientWidth);
-
-      // ドット: クローン位置（= total）では先頭ドットを点灯
-      setActiveIdx(idx >= total ? 0 : idx);
-
-      // 手動スクロールでクローンに到達した場合も先頭へ戻す
-      if (idx >= total) {
-        if (snapBackTimer.current) clearTimeout(snapBackTimer.current);
-        snapBackTimer.current = setTimeout(() => {
-          const e = scrollRef.current;
-          if (!e) return;
-          e.style.scrollSnapType = "none";
-          e.scrollLeft = 0;
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              e.style.scrollSnapType = "";
-            });
-          });
-        }, 80);
-      }
-    };
-
-    return (
-      <section
-        className={cn(
-          "relative overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm backdrop-blur-sm",
-          className
-        )}
-      >
-        {/* 横スクロール式カードエリア */}
-        <div
-          ref={scrollRef}
-          className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          onScroll={handleScroll}
-        >
-          {loopCards.map((c) => (
-            <div key={c.key} className="min-w-full shrink-0 snap-start">
-              {c.node}
-            </div>
-          ))}
-        </div>
-
-        {/* ドットインジケーター（2枚以上のとき表示） */}
-        {total > 1 && (
-          <div className="flex justify-center gap-1.5 pb-2.5">
-            {cards.map((c, i) => (
-              <button
-                key={c.key}
-                type="button"
-                aria-label={`カード ${i + 1}`}
-                onClick={() =>
-                  scrollRef.current?.scrollTo({
-                    left: i * (scrollRef.current.clientWidth ?? 0),
-                    behavior: "smooth",
-                  })
-                }
-                className={cn(
-                  "size-1.5 rounded-full transition-colors",
-                  i === activeIdx ? "bg-primary" : "bg-muted-foreground/30"
-                )}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    );
-  }
-
   /** 月ナビ付きカレンダーパネル */
   function CalendarPanel() {
     return (
@@ -785,7 +766,19 @@ export default function HomePage() {
                 <Link href="/journal"><BookOpen className="size-4" />今日のジャーナルを書く</Link>
               </Button>
             </div>
-            <CountdownContent className="flex flex-col justify-center" />
+            <CountdownContent
+              className="flex flex-col justify-center"
+              isStudent={isStudent}
+              countdown={countdown}
+              progressPercent={progressPercent}
+              graduationDate={graduationDate}
+              showLifeCountdown={countdownSettings.showLifeCountdown}
+              birthDate={birthDate}
+              lifeCountdown={lifeCountdown}
+              lifeProgress={lifeProgress}
+              customCards={countdownSettings.customCards}
+              customCardParts={customCardParts}
+            />
             {/* 統計 3-col */}
             <div className="grid shrink-0 grid-cols-3 gap-2">
               <Card className="gap-1 py-2 transition-shadow hover:shadow-md">
@@ -855,7 +848,18 @@ export default function HomePage() {
         <div className="w-full">
           <div className="space-y-3 px-3 pt-4 pb-32">
             {/* カウントダウン */}
-            <CountdownContent />
+            <CountdownContent
+              isStudent={isStudent}
+              countdown={countdown}
+              progressPercent={progressPercent}
+              graduationDate={graduationDate}
+              showLifeCountdown={countdownSettings.showLifeCountdown}
+              birthDate={birthDate}
+              lifeCountdown={lifeCountdown}
+              lifeProgress={lifeProgress}
+              customCards={countdownSettings.customCards}
+              customCardParts={customCardParts}
+            />
 
             {/* 今日のジャーナルを書く */}
             <Button size="lg" className="h-20 w-full gap-2 px-6 text-base" asChild>
