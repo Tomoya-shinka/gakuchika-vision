@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(find '/c/Users/yoko5/OneDrive/ドキュメント/Vibe codeing\\(Cursur\\)/gakuchika/src' -name *comment* -o -name *Comment*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "Bash(grep -E '\\\\.\\(tsx|ts\\)$')",
+      "Bash(xargs grep:*)"
     ]
   }
 }
