@@ -112,51 +112,8 @@ type GoalsSlide = {
   empty: string;
 };
 
-/** 目標カルーセル（無限ループ：末尾に先頭クローンを追加し常に右スクロール） */
+/** 目標カルーセル（手動スクロールのみ） */
 function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: boolean }) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    const prefersReduced =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (prefersReduced) return;
-
-    // 実スライド数 + 先頭クローン1枚 = totalItems
-    const totalItems = slides.length + 1;
-
-    const id = window.setInterval(() => {
-      const itemWidth = el.scrollWidth / totalItems;
-      if (!itemWidth) return;
-      const idx = Math.round(el.scrollLeft / itemWidth);
-      const next = idx + 1;
-
-      el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
-
-      // クローン（最後）まで来たらアニメーション完了後に先頭へ瞬時ジャンプ
-      // snap-mandatory が scrollLeft 代入を再アニメーションするのを防ぐため
-      // ジャンプ前後で scrollSnapType を一時無効にする
-      if (next === slides.length) {
-        setTimeout(() => {
-          el.style.scrollSnapType = "none";
-          el.scrollLeft = 0;
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              el.style.scrollSnapType = "";
-            });
-          });
-        }, 550);
-      }
-    }, 4500);
-
-    return () => window.clearInterval(id);
-  }, [slides.length]);
-
-  // 実スライド + 先頭スライドのクローン
-  const allSlides = slides[0] ? [...slides, slides[0]] : slides;
-
   function SlideCard({ s, keyStr }: { s: GoalsSlide; keyStr: string }) {
     const Icon = s.icon;
     const text = s.content.length > 0 ? s.content : s.empty;
@@ -196,11 +153,10 @@ function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: bo
   return (
     <div className={compact ? "mb-2" : "mb-3"}>
       <div
-        ref={trackRef}
         className="flex overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {allSlides.map((s, i) => (
-          <SlideCard key={i === slides.length ? `${s.key}-clone` : s.key} s={s} keyStr={i === slides.length ? `${s.key}-clone` : s.key} />
+        {slides.map((s) => (
+          <SlideCard key={s.key} s={s} keyStr={s.key} />
         ))}
       </div>
     </div>
