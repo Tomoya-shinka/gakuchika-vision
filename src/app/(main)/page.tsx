@@ -147,11 +147,33 @@ function GoalsSlideCard({ s, compact }: { s: GoalsSlide; compact?: boolean }) {
   );
 }
 
-/** 目標カルーセル（手動スクロールのみ） */
+/** 目標カルーセル（自動スクロール対応） */
 function GoalsCarousel({ slides, compact }: { slides: GoalsSlide[]; compact?: boolean }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || slides.length <= 1) return;
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (prefersReduced) return;
+
+    const id = window.setInterval(() => {
+      const itemWidth = el.clientWidth;
+      if (!itemWidth) return;
+      const maxScroll = el.scrollWidth - itemWidth;
+      const next = el.scrollLeft + itemWidth;
+      el.scrollTo({ left: next > maxScroll ? 0 : next, behavior: "smooth" });
+    }, 4500);
+
+    return () => window.clearInterval(id);
+  }, [slides.length]);
+
   return (
     <div className={compact ? "mb-2" : "mb-3"}>
       <div
+        ref={trackRef}
         className="flex overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map((s) => (
@@ -308,36 +330,6 @@ function CountdownContent({
 
   const total = cards.length;
   const loopCards = total > 1 ? [...cards, { key: `${cards[0]!.key}-clone`, node: cards[0]!.node }] : cards;
-
-  useEffect(() => {
-    if (total <= 1) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    const prefersReduced =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (prefersReduced) return;
-
-    const id = window.setInterval(() => {
-      const itemWidth = el.clientWidth;
-      if (!itemWidth) return;
-      const current = Math.round(el.scrollLeft / itemWidth);
-      const next = current + 1;
-      el.scrollTo({ left: next * itemWidth, behavior: "smooth" });
-      if (next >= total) {
-        setTimeout(() => {
-          el.style.scrollSnapType = "none";
-          el.scrollLeft = 0;
-          setActiveIdx(0);
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => { el.style.scrollSnapType = ""; });
-          });
-        }, 550);
-      }
-    }, 4500);
-
-    return () => window.clearInterval(id);
-  }, [total]);
 
   if (total === 0) return null;
 
